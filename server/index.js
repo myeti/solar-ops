@@ -100,6 +100,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  logger.error('SolarOps failed to start', { error: error.stack || error.message });
+  // Some errors (Sequelize's) keep their message out of the stack.
+  logger.error(`SolarOps failed to start: ${error.message || error.name}`, { error: error.stack || error.message });
   process.exit(1);
 });

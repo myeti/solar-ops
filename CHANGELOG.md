@@ -7,6 +7,14 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
+## [Unreleased]
+
+### Fixed
+
+- An update could fail when SolarOps backed up its database before a migration: a previous update
+  had created the backups folder as root. The setup now gives that folder back to SolarOps, and a
+  failed backup says why (startup errors now log their message).
+
 ## [0.2.2] - 2026-11-12
 
 ### Added
@@ -82,6 +90,7 @@ First version: everything SolarOps does when the history starts.
   `npm run rollback`, and database migrations applied after a backup.
 - Docker test bench, ESLint and Prettier, documentation in `docs/`.
 
-[Unreleased]: https://github.com/myeti/solar-ops/compare/0.2.1...develop
+[Unreleased]: https://github.com/myeti/solar-ops/compare/0.2.2...develop
+[0.2.2]: https://github.com/myeti/solar-ops/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/myeti/solar-ops/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/myeti/solar-ops/releases/tag/0.2.0
