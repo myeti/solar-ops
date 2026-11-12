@@ -16,6 +16,7 @@ import config from '../config.js';
 import { runConfiguredCommand } from '../lib/exec.js';
 import { conflict } from '../lib/errors.js';
 import { ensureDirectory, readFileOrNull, writeFileAtomic, writeManagedFile } from '../lib/files.js';
+import { accessDirectives, writeAccessFile } from './access.js';
 import { findServableCertificateFiles } from './certificates.js';
 import { NGINX_MARKER, resolveProjectPaths } from './projectPaths.js';
 
@@ -176,18 +177,29 @@ export function renderNginxConfig({ project, paths, certificateFiles }) {
     'server {',
   ];
 
-  const httpBlock = [
-    ...listenDirectives(80, false),
-    `server_name ${serverNames};`,
-    '',
+  const access = accessDirectives(network, paths.htpasswd);
+  const httpBlock = [...listenDirectives(80, false), `server_name ${serverNames};`, ''];
+
+  // Plain HTTP serving the site is restricted too; a redirect is not (the
+  // password is only ever asked over HTTPS).
+  if (!redirectToHttps) {
+    httpBlock.push(...access);
+  }
+
+  httpBlock.push(
     "# Let's Encrypt HTTP-01 challenges",
     'location ^~ /.well-known/acme-challenge/ {',
     `    root ${paths.acme};`,
     '    default_type "text/plain";',
     '    try_files $uri =404;',
-    '}',
-    '',
-  ];
+  );
+
+  // Renewals keep working whatever the access restriction.
+  if (access.length > 0 && !redirectToHttps) {
+    httpBlock.push('    satisfy any;', '    allow all;', '    auth_basic off;');
+  }
+
+  httpBlock.push('}', '');
 
   if (redirectToHttps) {
     httpBlock.push('location / {', '    return 301 https://$host$request_uri;', '}');
@@ -214,7 +226,7 @@ export function renderNginxConfig({ project, paths, certificateFiles }) {
       httpsBlock.push('add_header Strict-Transport-Security "max-age=31536000" always;');
     }
 
-    httpsBlock.push('', ...applicationDirectives(network, paths, project.port));
+    httpsBlock.push('', ...access, ...applicationDirectives(network, paths, project.port));
     lines.push('', 'server {', ...indent(httpsBlock), '}');
   }
 
@@ -319,6 +331,10 @@ export function applyProjectNginx(project) {
     const certificateFiles = await findServableCertificateFiles(project, paths);
     const https = certificateFiles !== null;
     const content = renderNginxConfig({ project, paths, certificateFiles });
+
+    // The users file first: nginx reads it at each request (a password change
+    // needs no reload), and nginx -t checks the configuration with it.
+    await writeAccessFile(project.network, paths.htpasswd);
 
     if (content === previous) {
       return { served: true, https, changed: false };

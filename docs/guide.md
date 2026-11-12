@@ -7,7 +7,7 @@
 - [Deployments](#deployments) · [Webhooks](#webhooks)
 - [Databases](#databases) · [Mail](#mail) · [Environment variables](#environment-variables)
 - [Domains and HTTPS](#domains-and-https) · [Shared certificates](#shared-certificates-wildcards) ·
-  [DNS records](#dns-records)
+  [DNS records](#dns-records) · [Restricting access](#restricting-access)
 - [Dashboard](#dashboard) · [Alerts](#alerts) · [Admins and login](#admins-and-login)
 - [Existing projects and databases](#existing-projects-and-databases)
 - [SolarOps itself](#solarops-itself)
@@ -182,6 +182,24 @@ through the API of one of your DNS accounts (the same accounts as for DNS-01 cer
 - the AAAA record only follows an A record pointing here, and without a public IPv6 an AAAA record
   pointing elsewhere is reported (Let's Encrypt tries IPv6 first);
 - every run is in the audit journal; on OVHcloud, the zone is refreshed so changes go live.
+
+### Restricting access
+
+The **Access** panel of the Network tab keeps a website private (a staging site, an admin tool),
+enforced by nginx before the request reaches the project:
+
+- **Users**: visitors are asked for a user name and password (HTTP basic auth). Passwords need 8
+  characters or more and are stored as SHA-512 crypt hashes in `<project>/etc/htpasswd`, never in
+  clear; leave a password empty to keep it. Use HTTPS with *Force HTTPS*: the panel warns when a
+  password could travel over plain HTTP.
+- **Allowed IP addresses**: one per line, IPv4 or IPv6, or ranges (`198.51.100.0/24`). Other
+  visitors get `403`. *Add my address* adds the one you are using.
+- **Both**: the allowed addresses get in directly, everyone else needs a password.
+
+Let's Encrypt challenges stay open, so renewals keep working, and the health checks reach the app
+on its port, not through nginx. Behind a proxying CDN (Cloudflare's orange cloud), nginx sees the
+CDN's addresses: use users rather than IP addresses there. Every change is in the audit journal
+(user names and addresses only).
 
 ## Dashboard
 

@@ -272,7 +272,12 @@ export default {
         https = 'HTTPS';
       }
 
-      return `${network.domain} → ${target} · ${https}`;
+      let access = '';
+      if (network.access && network.access.enabled) {
+        access = ' · restricted access';
+      }
+
+      return `${network.domain} → ${target} · ${https}${access}`;
     },
     async loadTasks() {
       try {

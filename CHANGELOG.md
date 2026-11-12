@@ -14,6 +14,9 @@ date, and the version in `package.json` follows.
 - A **Projects** section in the left menu, between Workspace and Infrastructure: every project,
   with an icon for its type (application or static site), in amber when it needs attention and
   dimmed when disabled (the reasons in its tooltip).
+- **Access protection** of a website (Network › Access): a password asked by nginx (users stored
+  as hashes), allowed IP addresses or ranges, or both (allowed addresses skip the password).
+  Let's Encrypt renewals keep working; the Overview says when access is restricted.
 
 ### Changed
 

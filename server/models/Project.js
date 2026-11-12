@@ -1,5 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../database/connection.js';
+import { publicAccess } from '../services/access.js';
 import { encryptedJson, jsonWithSecrets } from './encryptedAttributes.js';
 
 export const DEFAULT_BUILD_COMMAND = 'npm run build';
@@ -104,6 +105,8 @@ export default class Project extends Model {
       autoRenew: true,
       forceHttps: true,
       clientMaxBodySize: DEFAULT_MAX_UPLOAD_MB,
+      // Password and / or IP restriction in nginx (services/access.js).
+      access: { enabled: false, users: [], allowedIps: [] },
       appliedAt: null,
     };
   }
@@ -189,7 +192,8 @@ export default class Project extends Model {
         backups: database.backups,
       },
       smtp: this.smtp,
-      network: this.network,
+      // The access users' password hashes never leave the server.
+      network: { ...this.network, access: publicAccess(this.network) },
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
