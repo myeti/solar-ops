@@ -267,7 +267,8 @@ apply() {
     migrations="$(json_field "$LAST_MIGRATION" applied)"
   fi
 
-  install -d -m 0700 "$BACKUPS_DIR"
+  # Owned like the data folder: SolarOps writes its backups there.
+  install -d -m 0700 -o "$(stat -c %U "$DATA_DIR")" -g "$(stat -c %G "$DATA_DIR")" "$BACKUPS_DIR"
   node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ at: new Date().toISOString(), branch: process.argv[2], from: process.argv[3], to: process.argv[4], backup: process.argv[5] || null }, null, 2) + "\n", { mode: 0o600 })' \
     "$LAST_UPDATE" "$BRANCH" "$from" "$(git_ rev-parse HEAD)" "$backup"
 

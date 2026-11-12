@@ -855,6 +855,10 @@ done
 
 # SolarOps state (database, master key): owner only.
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "$DATA_DIR"
+# Database backups, taken by SolarOps itself before migrations: its own,
+# even when an earlier update created the folder as root.
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "$DATA_DIR/backups"
+chown "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR/backups"
 success "Data folder ${DATA_DIR}"
 
 if ! sudo -u "$SERVICE_USER" test -r "$APP_DIR/server/index.js"; then
