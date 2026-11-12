@@ -7,14 +7,6 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
-## [Unreleased]
-
-### Fixed
-
-- An update could fail when SolarOps backed up its database before a migration: a previous update
-  had created the backups folder as root. The setup now gives that folder back to SolarOps, and a
-  failed backup says why (startup errors now log their message).
-
 ## [0.2.2] - 2026-11-12
 
 ### Added
@@ -40,6 +32,12 @@ date, and the version in `package.json` follows.
 - The custom variables form shows values in clear, except for names containing `SECRET` or
   `PASSWORD` (masked, revealed on demand).
 - The Network tab says the domain is given to the app as `PUBLIC_URL`.
+
+### Fixed
+
+- An update could fail when SolarOps backed up its database before a migration: a previous update
+  had created the backups folder as root. The setup now gives that folder back to SolarOps, and a
+  failed backup says why (startup errors now log their message).
 
 ## [0.2.1] - 2026-11-12
 
