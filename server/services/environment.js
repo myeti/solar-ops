@@ -2,12 +2,26 @@
  * Environment variables given to a project at startup (pm2) and during
  * builds. Sources, applied in this order (later wins):
  *
- *   1. system    NODE_ENV, SOLAROPS_PROJECT, PORT (the project port)
- *   2. database  DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DATABASE_URL
- *   3. smtp      SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
- *   4. custom    variables defined by the admin (can override anything above)
+ *   1. system    NODE_ENV, SOLAROPS_PROJECT, ROOT_DIR (the repo/ folder),
+ *                PORT (the project port), JWT_SECRET (generated once,
+ *                services/projectSecrets.js)
+ *   2. network   PUBLIC_URL (https://<domain>, http:// without certificate),
+ *                when the project has a domain (not a wildcard)
+ *   3. database  DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DATABASE_URL
+ *   4. smtp      SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+ *   5. custom    variables defined by the admin (can override anything above)
+ *
+ * Custom values may reference other variables: ${NAME} is replaced by the
+ * value NAME has for the process (API_URL=${PUBLIC_URL}/api), whatever its
+ * source or position; inside NAME itself, ${NAME} is the value it overrides
+ * (PUBLIC_URL=${PUBLIC_URL}/app). A bare $NAME is left as is, and $${NAME}
+ * writes ${NAME} literally. An unknown NAME becomes empty, a loop is left
+ * unexpanded: both are reported (`problems`). A value built from a secret
+ * is a secret.
  */
 import { SmtpAccount } from '../models/index.js';
+import { resolveProjectPaths } from './projectPaths.js';
+import { ensureProjectSecrets } from './projectSecrets.js';
 import { getPostgresSettings } from './settings.js';
 
 /**
@@ -33,9 +47,28 @@ export async function listProjectVariables(project) {
 
   add('NODE_ENV', 'production', 'system', false);
   add('SOLAROPS_PROJECT', project.uid, 'system', false);
+  add('ROOT_DIR', (await resolveProjectPaths(project)).repo, 'system', false);
 
   if (project.port) {
     add('PORT', project.port, 'system', false);
+  }
+
+  if (!project.system) {
+    add('JWT_SECRET', (await ensureProjectSecrets(project)).jwtSecret, 'system', true);
+  }
+
+  // The address the project is meant to be reached at: HTTPS as soon as a
+  // certificate method is chosen (the certificate may come later).
+  const network = project.network;
+
+  if (network.enabled && network.domain && !network.domain.includes('*')) {
+    let scheme = 'http';
+
+    if (network.certMethod !== 'none') {
+      scheme = 'https';
+    }
+
+    add('PUBLIC_URL', `${scheme}://${network.domain}`, 'network', false);
   }
 
   const database = project.database;
@@ -82,7 +115,135 @@ export async function listProjectVariables(project) {
     add(entry.key, entry.value, 'custom', secret);
   }
 
+  expandCustomVariables(variables);
+
   return variables;
+}
+
+/** ${NAME}, or $${NAME} (kept literally). */
+const REFERENCE = /\$(\$?)\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+
+/**
+ * Expand the references of the custom variables (see the header). Each one
+ * gets `template` (as written), `value` (expanded), `display` (expanded,
+ * referenced secrets masked), `ownSecret` (secret by itself) and `problems`.
+ *
+ * @param {Array<object>} variables in order, generated ones first
+ */
+function expandCustomVariables(variables) {
+  const final = new Map();
+
+  for (const variable of variables) {
+    final.set(variable.key, variable);
+  }
+
+  const results = new Map();
+  const resolving = new Set();
+
+  // The variable a reference points to: inside NAME, ${NAME} is the one it overrides.
+  const targetOf = (variable, name) => {
+    if (name !== variable.key) {
+      return final.get(name) || null;
+    }
+
+    const index = variables.indexOf(variable);
+
+    return variables.slice(0, index).findLast((candidate) => candidate.key === name) || null;
+  };
+
+  const resolve = (variable) => {
+    if (variable.source !== 'custom') {
+      let display = variable.value;
+
+      if (variable.secret) {
+        display = REDACTED;
+      }
+
+      return { value: variable.value, display, secret: variable.secret, problems: [], loop: false };
+    }
+
+    if (results.has(variable)) {
+      return results.get(variable);
+    }
+
+    resolving.add(variable);
+
+    const template = variable.value;
+    const problems = [];
+    let secret = variable.secret;
+    let loop = false;
+    let value = '';
+    let display = '';
+    let index = 0;
+
+    for (const match of template.matchAll(REFERENCE)) {
+      const [reference, escape, name] = match;
+      const before = template.slice(index, match.index);
+
+      value += before;
+      display += before;
+      index = match.index + reference.length;
+
+      if (escape) {
+        value += `\${${name}}`;
+        display += `\${${name}}`;
+        continue;
+      }
+
+      const target = targetOf(variable, name);
+
+      if (target === null) {
+        problems.push(`\${${name}} is empty: no variable ${name}.`);
+        continue;
+      }
+
+      if (resolving.has(target)) {
+        problems.push(`\${${name}} is left as is: ${name} refers back to ${variable.key}.`);
+        loop = true;
+        value += reference;
+        display += reference;
+        continue;
+      }
+
+      const resolved = resolve(target);
+
+      if (resolved.loop) {
+        problems.push(`\${${name}} is part of a loop of references.`);
+        loop = true;
+      }
+
+      value += resolved.value;
+
+      if (resolved.secret) {
+        secret = true;
+        display += REDACTED;
+      } else {
+        display += resolved.display;
+      }
+    }
+
+    value += template.slice(index);
+    display += template.slice(index);
+    resolving.delete(variable);
+
+    const result = { value, display, secret, problems, loop };
+    results.set(variable, result);
+
+    return result;
+  };
+
+  for (const variable of variables) {
+    if (variable.source === 'custom') {
+      const result = resolve(variable);
+
+      variable.template = variable.value;
+      variable.ownSecret = variable.secret;
+      variable.value = result.value;
+      variable.display = result.display;
+      variable.secret = result.secret;
+      variable.problems = result.problems;
+    }
+  }
 }
 
 /**
@@ -100,6 +261,7 @@ const REDACTED = '••••••••';
 /** Comment heading each group of variables in the .env rendering. */
 const SOURCE_TITLES = {
   system: 'SolarOps',
+  network: 'Network',
   database: 'Database (PostgreSQL)',
   smtp: 'Mail (SMTP)',
   custom: 'Custom',

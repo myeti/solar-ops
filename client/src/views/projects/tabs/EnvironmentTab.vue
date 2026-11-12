@@ -14,6 +14,10 @@
           Given to the process at startup and to install / build commands. Stored encrypted. A custom variable overrides
           one provided by SolarOps with the same name.
         </p>
+        <p class="tiny text-faint">
+          Reuse other variables with <code>${NAME}</code>, e.g. <code>API_URL=${PUBLIC_URL}/api</code>; write
+          <code>$${NAME}</code> for a literal <code>${NAME}</code>.
+        </p>
         <OrbitLoader v-if="loading" inline label="Loading…" />
         <KeyValueEditor v-else v-model="custom" />
         <span v-if="errors.variables" class="field-error">{{ errors.variables }}</span>
@@ -56,6 +60,12 @@
               </td>
               <td class="env-value">
                 <span class="mono small truncate">{{ displayValue(variable) }}</span>
+                <span v-if="showsTemplate(variable)" class="mono tiny text-faint truncate env-template"
+                  >= {{ variable.template }}</span
+                >
+                <span v-for="problem in variable.problems || []" :key="problem" class="tiny text-warning env-problem">{{
+                  problem
+                }}</span>
               </td>
               <td>
                 <span class="badge" :class="sourceBadge(variable.source)">{{ variable.source }}</span>
@@ -77,6 +87,7 @@ import KeyValueEditor from '../../../components/KeyValueEditor.vue';
 
 const SOURCE_BADGES = {
   system: 'badge-violet',
+  network: '',
   database: 'badge-cyan',
   smtp: 'badge-green',
   custom: 'badge-amber',
@@ -149,12 +160,17 @@ export default {
     sourceBadge(source) {
       return SOURCE_BADGES[source] || '';
     },
+    /** Custom values come expanded, the secrets they reference masked by the server. */
     displayValue(variable) {
-      if (variable.secret) {
+      if (variable.source !== 'custom' && variable.secret) {
         return '••••••••';
       }
 
       return variable.value;
+    },
+    /** How a custom value referencing other variables was written. */
+    showsTemplate(variable) {
+      return variable.source === 'custom' && !variable.ownSecret && String(variable.template || '').includes('${');
     },
   },
 };
@@ -173,5 +189,10 @@ export default {
 
 .env-overridden-label {
   margin-left: 6px;
+}
+
+.env-template,
+.env-problem {
+  display: block;
 }
 </style>

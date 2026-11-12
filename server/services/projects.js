@@ -25,6 +25,7 @@ import {
 } from './projectPaths.js';
 import { assertPortAvailable, nextFreePort } from './ports.js';
 import { getGeneralSettings } from './settings.js';
+import { newProjectSecrets } from './projectSecrets.js';
 import { selfProcessStatus } from './systemProject.js';
 
 /**
@@ -115,6 +116,7 @@ export async function createProject({ name, uid, folder, startCommand, type = 'a
     startCommand,
     active: true,
     env: [],
+    secrets: newProjectSecrets(),
   };
   let project;
 

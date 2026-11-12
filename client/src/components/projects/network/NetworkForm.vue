@@ -21,7 +21,7 @@
 
     <div v-else class="panel-body stack-lg">
       <div class="form-grid">
-        <FormField label="Domain" :error="errors.domain" hint="Must point to this server (A / AAAA record).">
+        <FormField label="Domain" :error="errors.domain" :hint="domainHint">
           <input v-model="form.domain" class="input mono" placeholder="app.example.com" spellcheck="false" />
         </FormField>
         <FormField label="Aliases" :error="errors.aliases" hint="Comma separated, e.g. www.example.com" optional>
@@ -221,6 +221,13 @@ export default {
     };
   },
   computed: {
+    domainHint() {
+      if (this.project.system) {
+        return 'Must point to this server (A / AAAA record).';
+      }
+
+      return 'Must point to this server (A / AAAA record). Given to the app as PUBLIC_URL.';
+    },
     network() {
       return this.project.network;
     },

@@ -9,6 +9,7 @@ import logger from './lib/logger.js';
 import { issueSetupToken } from './services/auth.js';
 import { installAskPassScript } from './services/git.js';
 import { applyProjectNginx } from './services/nginx.js';
+import { fillMissingProjectSecrets } from './services/projectSecrets.js';
 import { startScheduler, stopScheduler } from './services/scheduler.js';
 import { failInterruptedTasks } from './services/taskRunner.js';
 
@@ -68,6 +69,7 @@ async function syncSystemNginx(systemProject) {
 
 async function main() {
   const { systemProject } = await bootstrap();
+  await fillMissingProjectSecrets();
   await failInterruptedTasks();
   await installAskPassScript();
   await syncSystemNginx(systemProject);

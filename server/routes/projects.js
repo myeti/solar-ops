@@ -319,14 +319,22 @@ router.get('/:uid/environment/dotenv', async (req, res) => {
  */
 router.get('/:uid/environment', async (req, res) => {
   const variables = await listProjectVariables(req.project);
+  // Secrets of SolarOps stay hidden (revealed elsewhere, audited); custom values
+  // are shown expanded, with the secrets they reference masked.
   const preview = variables.map((variable) => {
     let value = variable.value;
 
-    if (variable.secret && variable.source !== 'custom') {
+    if (variable.source === 'custom') {
+      value = variable.display;
+
+      if (variable.ownSecret) {
+        value = '••••••••';
+      }
+    } else if (variable.secret) {
       value = '••••••••';
     }
 
-    return { ...variable, value };
+    return { ...variable, value, display: undefined };
   });
 
   res.json({ custom: req.project.env, variables: preview });
