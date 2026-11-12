@@ -52,6 +52,7 @@ export function getProjectPaths(project, baseFolder) {
     letsencrypt: path.join(etc, 'letsencrypt'),
     nginxConfig: path.join(etc, 'nginx.conf'),
     pm2Config: path.join(etc, 'pm2.json'),
+    htpasswd: path.join(etc, 'htpasswd'),
     dnsCredentials: path.join(etc, 'dns-credentials.ini'),
     stdoutLog: path.join(logs, 'out.log'),
     stderrLog: path.join(logs, 'error.log'),
