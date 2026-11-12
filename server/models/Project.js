@@ -252,6 +252,8 @@ Project.init(
     },
     /** Extra environment variables: [{ key, value }], fully encrypted. */
     env: encryptedJson('env', 'env_enc', []),
+    /** Generated secrets ({ jwtSecret }), fully encrypted: services/projectSecrets.js. */
+    secrets: encryptedJson('secrets', 'secrets_enc', {}),
     deploymentConfig: jsonWithSecrets('deploymentConfig', 'deployment_config', ['webhookSecret']),
     databaseConfig: jsonWithSecrets('databaseConfig', 'database_config', ['password']),
     smtpConfig: {

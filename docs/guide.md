@@ -118,10 +118,20 @@ Variables given to a project at startup (later sources win):
 
 | Source | Variables |
 | --- | --- |
-| system | `NODE_ENV=production`, `SOLAROPS_PROJECT`, `PORT` (applications: the project port) |
+| system | `NODE_ENV=production`, `SOLAROPS_PROJECT`, `ROOT_DIR` (the project's `repo/` folder, where it runs and builds), `PORT` (applications: the project port), `JWT_SECRET` (32 random characters generated once per project, stored encrypted, masked like every secret) |
+| network | `PUBLIC_URL`, when the project has a domain: `https://<domain>` once a certificate method is chosen, `http://<domain>` otherwise |
 | database | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DATABASE_URL` |
 | mail | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` |
 | custom | anything you define in the **Environment** tab, encrypted at rest |
+
+Custom values can reuse other variables: `${NAME}` is replaced by the value `NAME` has for the
+process, whatever its source (`API_PUBLIC_URL=${PUBLIC_URL}/api`,
+`REDIS_URL=redis://127.0.0.1:${REDIS_PORT}`). Inside a variable, its own name means the value it
+overrides (`PUBLIC_URL=${PUBLIC_URL}/app`). Only `${NAME}` is expanded, never a bare `$NAME`, so
+passwords containing `$` stay as they are; `$${NAME}` writes `${NAME}` literally, for apps that
+expand placeholders themselves. A reference to an unknown variable becomes empty and a loop is left
+as written: the **Environment** tab flags both. A value built from a secret (`${DB_PASSWORD}`) is
+treated as a secret.
 
 The project overview shows the result under **On the server → Env vars**, as a `.env` file. Secrets
 are redacted by the server before they reach the page: component passwords, custom variables whose
