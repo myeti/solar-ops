@@ -1028,9 +1028,30 @@ step "Configuring pm2 startup"
 # The pm2 daemon runs in its own systemd unit, so restarting SolarOps
 # never stops the projects.
 env PATH="$PATH" pm2 startup systemd -u "$SERVICE_USER" --hp "$SERVICE_HOME" > /dev/null
-systemctl enable --now "pm2-${SERVICE_USER}" > /dev/null 2>&1
+systemctl enable "pm2-${SERVICE_USER}" > /dev/null 2>&1
+PM2_UNIT_READY=true
+
+if ! systemctl is-active --quiet "pm2-${SERVICE_USER}"; then
+  if sudo -u "$SERVICE_USER" -H pm2 ping > /dev/null 2>&1; then
+    # A daemon started by hand (pm2 update, pm2 resurrect...) runs outside
+    # the unit: systemd refuses to adopt it, and stopping it would stop
+    # every project. It is left as is.
+    PM2_UNIT_READY=false
+    warn "pm2 runs outside pm2-${SERVICE_USER}.service (started by hand, e.g. with pm2 update): the projects run, and the service takes over at the next reboot."
+    warn "To hand it over now (each project restarts for a few seconds): sudo -u ${SERVICE_USER} -H pm2 save && sudo -u ${SERVICE_USER} -H pm2 kill && sudo systemctl restart pm2-${SERVICE_USER}"
+  elif ! systemctl start "pm2-${SERVICE_USER}"; then
+    systemctl status "pm2-${SERVICE_USER}" --no-pager -l 2>&1 | tail -n 15 >&2 || true
+    fail "pm2-${SERVICE_USER}.service does not start: see the lines above (journalctl -u pm2-${SERVICE_USER})."
+  fi
+fi
+
 sudo -u "$SERVICE_USER" -H pm2 save --force > /dev/null 2>&1 || true
-success "pm2-${SERVICE_USER}.service enabled"
+
+if [[ "$PM2_UNIT_READY" == true ]]; then
+  success "pm2-${SERVICE_USER}.service enabled and running"
+else
+  success "pm2-${SERVICE_USER}.service enabled (takes over at the next reboot)"
+fi
 
 step "Configuring pm2 log rotation"
 

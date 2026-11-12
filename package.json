@@ -1,6 +1,6 @@
 {
   "name": "solarops",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Mission control for your VPS: create, deploy and manage many projects on a single server (pm2, nginx, certbot, PostgreSQL).",
   "author": "Magalon",
   "private": true,
