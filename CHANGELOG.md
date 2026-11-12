@@ -7,7 +7,7 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
-## [Unreleased]
+## [0.2.2] - 2026-11-12
 
 ### Added
 
