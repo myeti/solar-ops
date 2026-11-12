@@ -75,7 +75,17 @@ async function backupDatabase(sequelize, firstMigration) {
     `solarops-${timestamp(new Date())}-before-${firstMigration.replace(/\.js$/, '')}.sqlite`,
   );
 
-  await sequelize.query(`VACUUM INTO ${sequelize.escape(file)}`);
+  try {
+    await sequelize.query(`VACUUM INTO ${sequelize.escape(file)}`);
+  } catch (error) {
+    const reason = error.original?.message || error.message || error.name;
+
+    throw new Error(
+      `Could not back up the database to ${file} before migrating it (${reason}). Check that ${BACKUPS_DIR} belongs to the user running SolarOps, and that the disk has room.`,
+      { cause: error },
+    );
+  }
+
   await fs.chmod(file, 0o600);
 
   const backups = (await fs.readdir(BACKUPS_DIR)).filter((name) => BACKUP_FILE.test(name)).sort();
