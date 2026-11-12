@@ -31,6 +31,12 @@ ESLint (`eslint.config.js`) checks JavaScript and Vue files, including the house
 ternaries, braces around every block. Prettier (`.prettierrc.json`) formats the code;
 `npm run lint:fix` and `npm run format:check` exist too.
 
+## Changelog
+
+Every change adds a line to [CHANGELOG.md](../CHANGELOG.md) under **Unreleased** (Added, Changed,
+Fixed...), in the same commit. A release renames that section to its version and date, and bumps
+`version` in `package.json` (shown in the sidebar).
+
 ## Test bench (Docker)
 
 [`docker/`](../docker/README.md) runs a disposable Ubuntu "VPS" with systemd, a PostgreSQL server

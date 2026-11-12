@@ -9,3 +9,4 @@
 | [**How it works**](architecture.md) | What SolarOps drives on the server, project folders, its own data |
 | [**Security**](security.md) | Security model, emergency recovery CLI, backups |
 | [**Development**](development.md) | Local setup, lint and format, Docker test bench, code layout, database migrations |
+| [**Changelog**](../CHANGELOG.md) | What changed in each version |

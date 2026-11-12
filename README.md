@@ -160,6 +160,7 @@ runs a throwaway VPS, with real certificates from a local Let's Encrypt test ser
 | [**How it works**](docs/architecture.md) | What SolarOps drives on the server, project folders |
 | [**Security**](docs/security.md) | Security model, emergency recovery CLI, backups |
 | [**Development**](docs/development.md) | Local setup, lint, test bench, code layout |
+| [**Changelog**](CHANGELOG.md) | What changed in each version |
 
 <br>
 
