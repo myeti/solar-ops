@@ -1,0 +1,236 @@
+/*
+ * SolarOps design tokens and base styles.
+ *
+ * Direction: a solid, modern design system with a light solar touch.
+ * Neutral dark surfaces, glass panels with real backdrop blur, one indigo
+ * accent for interaction, and a warm "sun" gradient reserved for the brand
+ * and a few highlights. See AmbientBackground.vue for the backdrop.
+ */
+
+:root {
+  /* Surfaces */
+  --bg: #09090c;
+  --bg-raised: #111116;
+  --surface: rgba(22, 22, 28, 0.55);
+  --surface-strong: rgba(18, 18, 24, 0.86);
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --surface-sunken: rgba(255, 255, 255, 0.03);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* Text */
+  --text: #f4f4f5;
+  --text-dim: #a1a1aa;
+  --text-faint: #71717a;
+
+  /* Interaction accent */
+  --accent: #818cf8;
+  --accent-strong: #a5b4fc;
+  --accent-soft: rgba(129, 140, 248, 0.14);
+  --accent-ring: rgba(129, 140, 248, 0.35);
+
+  /* Status */
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.12);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.12);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --info: #38bdf8;
+  --info-soft: rgba(56, 189, 248, 0.12);
+
+  /* Brand: the sun */
+  --sun-1: #ffd38a;
+  --sun-2: #ff8f5a;
+  --sun-3: #e5487f;
+  --gradient-sun: linear-gradient(135deg, var(--sun-1) 0%, var(--sun-2) 50%, var(--sun-3) 100%);
+
+  /* Typography */
+  --font-ui: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* Shape & depth */
+  --radius-sm: 7px;
+  --radius: 9px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --glass: blur(20px) saturate(150%);
+  --shadow-panel: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 10px 30px -14px rgba(0, 0, 0, 0.75);
+  --shadow-overlay: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 30px 80px -24px rgba(0, 0, 0, 0.85);
+
+  --sidebar-width: 244px;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.55;
+  letter-spacing: -0.006em;
+  font-feature-settings: 'cv11', 'ss01';
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(129, 140, 248, 0.4);
+  color: #fff;
+}
+
+a {
+  color: var(--accent-strong);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+a:hover {
+  color: #c7d2fe;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+p {
+  margin: 0;
+}
+
+code,
+kbd,
+pre,
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  letter-spacing: 0;
+}
+
+code {
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: #e4e4e7;
+  overflow-wrap: anywhere;
+}
+
+hr {
+  border: 0;
+  height: 1px;
+  background: var(--border);
+  margin: 24px 0;
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Text helpers */
+.text-dim {
+  color: var(--text-dim);
+}
+
+.text-faint {
+  color: var(--text-faint);
+}
+
+.text-sun {
+  background: var(--gradient-sun);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.text-danger {
+  color: var(--danger);
+}
+
+.text-warning {
+  color: var(--warning);
+}
+
+/* Small context label above a title (parent section). */
+.eyebrow {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.small {
+  font-size: 13px;
+}
+
+.tiny {
+  font-size: 12px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

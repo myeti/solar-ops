@@ -1,0 +1,68 @@
+/*
+ * Application shell: sidebar + main content, and the public (login) shell.
+ */
+
+.app-shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+.app-main {
+  position: relative;
+  min-height: 100vh;
+  margin-left: var(--sidebar-width);
+  padding: 36px 40px 72px;
+}
+
+.app-content {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+/* Pages flagged meta.wide use the whole width, aligned to the left. */
+.app-content.is-wide {
+  max-width: none;
+}
+
+.public-shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+.mobile-menu {
+  display: none;
+}
+
+.sidebar-scrim {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .app-main {
+    margin-left: 0;
+    padding: 68px 16px 56px;
+  }
+
+  .mobile-menu {
+    display: inline-flex;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    background: var(--surface-strong);
+    backdrop-filter: var(--glass);
+    -webkit-backdrop-filter: var(--glass);
+  }
+
+  .sidebar-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+}

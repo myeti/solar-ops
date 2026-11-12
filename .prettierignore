@@ -1,0 +1,11 @@
+# Generated or external
+client/dist/
+node_modules/
+package-lock.json
+data/
+
+# Prose and server files are formatted by hand (tables, shell, SQL).
+*.md
+docker/
+deploy/
+.claude/

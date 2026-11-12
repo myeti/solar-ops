@@ -1,0 +1,82 @@
+# ──────────────────────────────────────────────────────────────────────
+# SolarOps test bench
+#
+#   vps       Ubuntu 24.04 with systemd: a fresh server, like the image a
+#             hosting provider gives you. deploy/install.sh runs on it for real.
+#   postgres  PostgreSQL 16 that already hosts databases (to test linking).
+#   pebble    Let's Encrypt's test ACME server: real certificate requests,
+#             validated over HTTP against the vps, without the internet.
+#
+# Usage: see docker/README.md
+#
+# TEST VALUES ONLY: never reuse these passwords anywhere.
+# ──────────────────────────────────────────────────────────────────────
+
+name: solarops-test
+
+services:
+  vps:
+    build: ./vps
+    hostname: vps
+    # systemd runs as PID 1, exactly like on a real server.
+    privileged: true
+    cgroup: host
+    tmpfs:
+      - /run
+      - /run/lock
+      - /tmp
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      # SolarOps sources (read-only), copied to /var/solarops by install-solarops.
+      - ..:/src:ro
+    environment:
+      SOLAROPS_TEST_PG_PASSWORD: solarops-admin-test
+    ports:
+      - "127.0.0.1:${BENCH_UI_PORT:-4100}:4100"
+      - "127.0.0.1:${BENCH_HTTP_PORT:-8080}:80"
+      - "127.0.0.1:${BENCH_HTTPS_PORT:-8443}:443"
+    networks:
+      default:
+        # Test domains: resolved to the vps by Docker's DNS, so Pebble can
+        # validate certificates for them. Add aliases to test more domains.
+        aliases:
+          - solarops.test
+          - app.solarops.test
+          - www.app.solarops.test
+          - shop.solarops.test
+          - blog.solarops.test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pebble:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres-test
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Admin role for SolarOps + databases that "already exist".
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:${BENCH_PG_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  pebble:
+    image: ghcr.io/letsencrypt/pebble:latest
+    command: ["-config", "/test/config/solarops.json"]
+    environment:
+      # Validate immediately, and never reject nonces at random: faster and
+      # deterministic tests.
+      PEBBLE_VA_NOSLEEP: "1"
+      PEBBLE_WFE_NONCEREJECT: "0"
+    volumes:
+      - ./pebble/pebble-config.json:/test/config/solarops.json:ro
+
+volumes:
+  postgres-data:
