@@ -7,6 +7,19 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
+## [Unreleased]
+
+### Added
+
+- A **Projects** section in the left menu, between Workspace and Infrastructure: every project,
+  with an icon for its type (application or static site), in amber when it needs attention and
+  dimmed when disabled (the reasons in its tooltip).
+
+### Changed
+
+- Workspace › Projects is highlighted on the projects list and the creation page only: a project's
+  page highlights its own entry in the Projects section.
+
 ## [0.2.2] - 2026-11-12
 
 ### Added

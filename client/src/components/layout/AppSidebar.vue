@@ -9,20 +9,39 @@
     </RouterLink>
 
     <nav class="sidebar-nav">
-      <div v-for="group in groups" :key="group.title" class="sidebar-group">
-        <div class="sidebar-group-title">{{ group.title }}</div>
-        <RouterLink
-          v-for="item in group.items"
-          :key="item.to"
-          :to="item.to"
-          class="sidebar-link"
-          :class="{ active: isActive(item) }"
-          @click="$emit('navigate')"
-        >
-          <FeatherIcon :name="item.icon" :size="16" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
-      </div>
+      <template v-for="group in groups" :key="group.title">
+        <div class="sidebar-group">
+          <div class="sidebar-group-title">{{ group.title }}</div>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.to"
+            :to="item.to"
+            class="sidebar-link"
+            :class="{ active: isActive(item) }"
+            @click="$emit('navigate')"
+          >
+            <FeatherIcon :name="item.icon" :size="16" />
+            <span>{{ item.label }}</span>
+          </RouterLink>
+        </div>
+
+        <!-- Every project, right after the Workspace group. -->
+        <div v-if="group.projectsAfter && projectItems.length > 0" class="sidebar-group">
+          <div class="sidebar-group-title">Projects</div>
+          <RouterLink
+            v-for="project in projectItems"
+            :key="project.uid"
+            :to="`/projects/${project.uid}`"
+            class="sidebar-link sidebar-project"
+            :class="[`is-${project.state}`, { active: isProjectActive(project) }]"
+            :title="project.title"
+            @click="$emit('navigate')"
+          >
+            <FeatherIcon :name="project.icon" :size="16" />
+            <span class="truncate sidebar-project-name">{{ project.name }}</span>
+          </RouterLink>
+        </div>
+      </template>
     </nav>
 
     <div v-if="$session.admin" class="sidebar-footer">
@@ -41,8 +60,24 @@
 
 <script>
 /**
- * Main navigation.
+ * Main navigation, with every project: an icon for its type, its health in
+ * its text (amber: needs attention, dimmed: disabled). The projects are loaded once an
+ * admin is signed in, and reloaded when an operation finishes, on
+ * navigation, and every 30 seconds.
  */
+import { projectHealth } from '../../services/projectHealth.js';
+
+const REFRESH_MS = 30 * 1000;
+
+/** Navigation reloads the projects at most this often. */
+const NAVIGATION_REFRESH_MS = 5 * 1000;
+
+const HEALTH_LABELS = {
+  healthy: 'healthy',
+  unhealthy: 'needs attention',
+  disabled: 'disabled',
+};
+
 export default {
   name: 'AppSidebar',
   props: {
@@ -55,14 +90,20 @@ export default {
   emits: ['logout', 'navigate'],
   data() {
     return {
+      projects: [],
+      lastLoadAt: 0,
+      timer: null,
+      unsubscribe: null,
       /** package.json version, built in by client/vite.config.js. */
       version: import.meta.env.SOLAROPS_VERSION,
       groups: [
         {
           title: 'Workspace',
+          projectsAfter: true,
           items: [
             { to: '/', label: 'Dashboard', icon: 'grid', exact: true },
-            { to: '/projects', label: 'Projects', icon: 'globe', exclude: '/projects/solarops' },
+            // Each project has its own entry below: this one is the list (and the creation).
+            { to: '/projects', label: 'Projects', icon: 'globe', only: ['/projects', '/projects/new'] },
           ],
         },
         {
@@ -87,6 +128,26 @@ export default {
     };
   },
   computed: {
+    /** The projects (SolarOps aside: it is under System), with their icon and health. */
+    projectItems() {
+      return this.projects
+        .filter((project) => !project.system)
+        .map((project) => {
+          const health = projectHealth(project);
+          let icon = 'cpu';
+          let title = `${project.name}: ${HEALTH_LABELS[health.state]}`;
+
+          if (project.type === 'static') {
+            icon = 'layout';
+          }
+
+          if (health.reasons.length > 0) {
+            title = `${title} (${health.reasons.join(', ')})`;
+          }
+
+          return { uid: project.uid, name: project.name, icon, state: health.state, title };
+        });
+    },
     /** Two letters from the e-mail: "jane.doe@..." => "JD", "ops@..." => "OP". */
     initials() {
       const local = this.$session.admin.email.split('@')[0];
@@ -99,9 +160,65 @@ export default {
       return local.slice(0, 2).toUpperCase();
     },
   },
+  watch: {
+    /**
+     * The menu can appear before the session is known (first load, sign in):
+     * the projects come as soon as an admin is signed in.
+     */
+    '$session.admin': {
+      immediate: true,
+      handler(admin) {
+        if (admin) {
+          this.loadProjects();
+        } else {
+          this.projects = [];
+        }
+      },
+    },
+    '$route.path'() {
+      if (Date.now() - this.lastLoadAt >= NAVIGATION_REFRESH_MS) {
+        this.loadProjects();
+      }
+    },
+  },
+  mounted() {
+    this.unsubscribe = this.$tasks.onFinished(() => this.loadProjects());
+    this.timer = setInterval(() => {
+      if (!document.hidden) {
+        this.loadProjects();
+      }
+    }, REFRESH_MS);
+  },
+  beforeUnmount() {
+    this.unsubscribe();
+    clearInterval(this.timer);
+  },
   methods: {
+    async loadProjects() {
+      if (!this.$session.admin) {
+        return;
+      }
+
+      this.lastLoadAt = Date.now();
+
+      try {
+        const { projects } = await this.$api.get('/projects');
+        this.projects = projects;
+      } catch {
+        // The menu keeps the projects it has: the pages report the errors.
+      }
+    },
+    isProjectActive(project) {
+      const path = this.$route.path;
+
+      return path === `/projects/${project.uid}` || path.startsWith(`/projects/${project.uid}/`);
+    },
     isActive(item) {
       const path = this.$route.path;
+
+      if (item.only) {
+        return item.only.includes(path);
+      }
 
       if (item.exact) {
         return path === item.to;
@@ -207,6 +324,22 @@ export default {
 
 .sidebar-link.active .icon {
   color: var(--accent-strong);
+}
+
+.sidebar-project-name {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Health of a project: a healthy one keeps the usual colors. */
+.sidebar-project.is-unhealthy,
+.sidebar-project.is-unhealthy:hover,
+.sidebar-project.is-unhealthy.active {
+  color: var(--warning);
+}
+
+.sidebar-project.is-disabled {
+  opacity: 0.5;
 }
 
 .sidebar-version {
