@@ -6,7 +6,9 @@
  *                PORT (the project port), JWT_SECRET (generated once,
  *                services/projectSecrets.js)
  *   2. network   PUBLIC_URL (https://<domain>, http:// without certificate),
- *                when the project has a domain (not a wildcard)
+ *                when the project has a domain (not a wildcard);
+ *                ANALYTICS_URL (the tracker script), when analytics are on
+ *                (services/analytics.js)
  *   3. database  DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DATABASE_URL
  *   4. smtp      SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
  *   5. custom    variables defined by the admin (can override anything above)
@@ -20,6 +22,7 @@
  * is a secret.
  */
 import { SmtpAccount } from '../models/index.js';
+import { analyticsScriptUrl } from './analytics.js';
 import { resolveProjectPaths } from './projectPaths.js';
 import { ensureProjectSecrets } from './projectSecrets.js';
 import { getPostgresSettings } from './settings.js';
@@ -69,6 +72,12 @@ export async function listProjectVariables(project) {
     }
 
     add('PUBLIC_URL', `${scheme}://${network.domain}`, 'network', false);
+  }
+
+  const analyticsUrl = await analyticsScriptUrl();
+
+  if (analyticsUrl !== null && !project.system) {
+    add('ANALYTICS_URL', analyticsUrl, 'network', false);
   }
 
   const database = project.database;

@@ -7,9 +7,12 @@
  * The delay is the project's startup time (`deployment.livenessTimeoutSeconds`),
  * else SOLAROPS_LIVENESS_TIMEOUT_SECONDS.
  */
+import fs from 'node:fs/promises';
 import http from 'node:http';
+import path from 'node:path';
 import config from '../config.js';
 import { getProjectProcess } from './pm2.js';
+import { resolveProjectPaths } from './projectPaths.js';
 
 const ATTEMPT_TIMEOUT_MS = 3000;
 const RETRY_DELAY_MS = 1000;
@@ -148,6 +151,39 @@ export async function answersNow(project) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Whether a project is live right now, for the projects list: an
+ * application answers on its port (one short request), a static site has
+ * its build (index.html in its public folder, served by nginx from disk).
+ * SolarOps itself is live: it is answering.
+ *
+ * @param {import('../models/Project.js').default} project
+ * @param {object|null} processStatus its pm2 process
+ * @returns {Promise<boolean>}
+ */
+export async function isLive(project, processStatus) {
+  if (project.system) {
+    return true;
+  }
+
+  if (project.isStatic) {
+    const paths = await resolveProjectPaths(project);
+
+    try {
+      await fs.access(path.join(paths.repo, project.network.publicFolder, 'index.html'));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  if (!project.port || processStatus === null || !processStatus.running) {
+    return false;
+  }
+
+  return answersNow(project);
 }
 
 /**

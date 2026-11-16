@@ -15,6 +15,7 @@ const AUDIT_ACTIONS = {
   'admin.delete': { label: 'Removed admin', icon: 'user-x', tone: 'red' },
   'settings.update': { label: 'Updated SolarOps settings', icon: 'sliders' },
   'alerts.update': { label: 'Updated the alert settings', icon: 'bell' },
+  'analytics.update': { label: 'Updated the analytics connector', icon: 'bar-chart-2' },
   'alerts.test': { label: 'Sent a test alert', icon: 'bell' },
   'alerts.sent': { label: 'Sent an alert e-mail:', icon: 'bell', tone: 'amber' },
   'alerts.failed': { label: 'Could not send an alert e-mail:', icon: 'bell', tone: 'red' },
