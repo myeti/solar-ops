@@ -203,8 +203,8 @@ CDN's addresses: use users rather than IP addresses there. Every change is in th
 
 ## Dashboard
 
-Online applications, server CPU / memory / storage, health checks, certificates, databases and
-pipelines, over your projects drawn as a tilted, animated solar system: SolarOps in purple,
+Projects online (applications running, and static sites served on their domain), server health
+checks, CPU, memory and storage, over your projects drawn as a tilted, animated solar system: SolarOps in purple,
 healthy projects in blue, those needing attention in red (not running, missing or expired
 certificate, failed deployment), disabled ones in gray. Ringed planets are on the web; click one
 to open it.

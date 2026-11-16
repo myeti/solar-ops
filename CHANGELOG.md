@@ -17,11 +17,21 @@ date, and the version in `package.json` follows.
 - **Access protection** of a website (Network › Access): a password asked by nginx (users stored
   as hashes), allowed IP addresses or ranges, or both (allowed addresses skip the password).
   Let's Encrypt renewals keep working; the Overview says when access is restricted.
+- **Counts in the left menu**: Projects, Git credentials, Domains & SSL (exposed domains),
+  PostgreSQL (databases on the server) and Mail relays show how many items they list; Alerts shows
+  the open alerts, in amber.
 
 ### Changed
 
 - Workspace › Projects is highlighted on the projects list and the creation page only: a project's
   page highlights its own entry in the Projects section.
+- The dashboard keeps five cards, in this order: Online, Health, CPU, Memory, Storage. The
+  Certificates, Databases and Pipelines cards are gone.
+
+### Fixed
+
+- The dashboard's Online card counts static sites too (served when active and exposed on a
+  domain), not only the running applications.
 
 ## [0.2.2] - 2026-11-12
 

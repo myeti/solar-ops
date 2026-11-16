@@ -22,6 +22,13 @@
           >
             <FeatherIcon :name="item.icon" :size="16" />
             <span>{{ item.label }}</span>
+            <span
+              v-if="badgeOf(item) !== null"
+              class="sidebar-badge"
+              :class="{ 'is-warning': item.count === 'alerts' }"
+            >
+              {{ badgeOf(item) }}
+            </span>
           </RouterLink>
         </div>
 
@@ -61,7 +68,8 @@
 <script>
 /**
  * Main navigation, with every project: an icon for its type, its health in
- * its text (amber: needs attention, dimmed: disabled). The projects are loaded once an
+ * its text (amber: needs attention, dimmed: disabled). Pages listing items
+ * show how many in a badge (alerts: the open ones, amber, hidden at zero). The projects are loaded once an
  * admin is signed in, and reloaded when an operation finishes, on
  * navigation, and every 30 seconds.
  */
@@ -91,6 +99,8 @@ export default {
   data() {
     return {
       projects: [],
+      /** GET /api/system/counts: the badges. */
+      counts: {},
       lastLoadAt: 0,
       timer: null,
       unsubscribe: null,
@@ -103,16 +113,22 @@ export default {
           items: [
             { to: '/', label: 'Dashboard', icon: 'grid', exact: true },
             // Each project has its own entry below: this one is the list (and the creation).
-            { to: '/projects', label: 'Projects', icon: 'globe', only: ['/projects', '/projects/new'] },
+            {
+              to: '/projects',
+              label: 'Projects',
+              icon: 'globe',
+              only: ['/projects', '/projects/new'],
+              count: 'projects',
+            },
           ],
         },
         {
           title: 'Infrastructure',
           items: [
-            { to: '/infrastructure/git', label: 'Git credentials', icon: 'git-branch' },
-            { to: '/infrastructure/domains', label: 'Domains & SSL', icon: 'shield' },
-            { to: '/infrastructure/database', label: 'PostgreSQL', icon: 'database' },
-            { to: '/infrastructure/mail', label: 'Mail relays', icon: 'send' },
+            { to: '/infrastructure/git', label: 'Git credentials', icon: 'git-branch', count: 'gitCredentials' },
+            { to: '/infrastructure/domains', label: 'Domains & SSL', icon: 'shield', count: 'domains' },
+            { to: '/infrastructure/database', label: 'PostgreSQL', icon: 'database', count: 'postgres' },
+            { to: '/infrastructure/mail', label: 'Mail relays', icon: 'send', count: 'mailRelays' },
           ],
         },
         {
@@ -120,7 +136,7 @@ export default {
           items: [
             { to: '/projects/solarops', label: 'SolarOps', icon: 'sun' },
             { to: '/activity', label: 'Activity', icon: 'activity' },
-            { to: '/alerts', label: 'Alerts', icon: 'bell' },
+            { to: '/alerts', label: 'Alerts', icon: 'bell', count: 'alerts' },
             { to: '/settings', label: 'Settings', icon: 'sliders' },
           ],
         },
@@ -172,6 +188,7 @@ export default {
           this.loadProjects();
         } else {
           this.projects = [];
+          this.counts = {};
         }
       },
     },
@@ -202,11 +219,26 @@ export default {
       this.lastLoadAt = Date.now();
 
       try {
-        const { projects } = await this.$api.get('/projects');
+        const [{ projects }, counts] = await Promise.all([this.$api.get('/projects'), this.$api.get('/system/counts')]);
         this.projects = projects;
+        this.counts = counts;
       } catch {
         // The menu keeps the projects it has: the pages report the errors.
       }
+    },
+    /** Number of items of a page, or null: unknown, or no open alert. */
+    badgeOf(item) {
+      const count = this.counts[item.count];
+
+      if (!item.count || typeof count !== 'number') {
+        return null;
+      }
+
+      if (item.count === 'alerts' && count === 0) {
+        return null;
+      }
+
+      return count;
     },
     isProjectActive(project) {
       const path = this.$route.path;
@@ -314,6 +346,24 @@ export default {
 .sidebar-link:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.sidebar-badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+}
+
+.sidebar-badge.is-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .sidebar-link.active {
