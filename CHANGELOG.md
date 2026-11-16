@@ -17,12 +17,22 @@ date, and the version in `package.json` follows.
 - **Access protection** of a website (Network › Access): a password asked by nginx (users stored
   as hashes), allowed IP addresses or ranges, or both (allowed addresses skip the password).
   Let's Encrypt renewals keep working; the Overview says when access is restricted.
+- **Analytics** (Settings › Analytics): connect Umami, self-hosted or Cloud, with its address and
+  an API key. The projects list shows each project's visitors now, and its visits today and over
+  7 days (the Umami website matching its public URL, linked); the dashboard adds two cards (visitors now, visits over
+  7 days); every project gets `ANALYTICS_URL`, the tracker script.
 - **Counts in the left menu**: Projects, Git credentials, Domains & SSL (exposed domains),
   PostgreSQL (databases on the server) and Mail relays show how many items they list; Alerts shows
   the open alerts, in amber.
 
 ### Changed
 
+- The projects list is a table, one project per row, sorted by name and sortable by every column:
+  status, services, public URL, CPU / memory / uptime, and analytics. A Refresh button reloads it.
+- The projects list checks that every project is live when it loads (an application answers on its
+  port, a static site is built): **Online** when it is served on its domain, **Live** and
+  **Unreachable** without a domain, **Down** when it does not answer (even with a domain),
+  **Stopped** when stopped in pm2, and **Unstable** while pm2 counts unstable restarts.
 - Workspace › Projects is highlighted on the projects list and the creation page only: a project's
   page highlights its own entry in the Projects section.
 - The dashboard keeps five cards, in this order: Online, Health, CPU, Memory, Storage. The

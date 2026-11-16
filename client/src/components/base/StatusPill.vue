@@ -13,6 +13,10 @@
  */
 const APPEARANCES = {
   online: { label: 'Online', tone: 'green', pulse: false },
+  live: { label: 'Live', tone: 'green', pulse: false },
+  down: { label: 'Down', tone: 'red', pulse: false },
+  unreachable: { label: 'Unreachable', tone: 'amber', pulse: false },
+  unstable: { label: 'Unstable', tone: 'amber', pulse: false },
   launching: { label: 'Launching', tone: 'blue', pulse: true },
   stopping: { label: 'Stopping', tone: 'amber', pulse: true },
   stopped: { label: 'Stopped', tone: 'grey', pulse: false },
