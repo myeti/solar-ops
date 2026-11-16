@@ -2,12 +2,12 @@
  * Dashboard overview, health checks, tasks and audit journal.
  */
 import express from 'express';
-import { Project, SharedCertificate, Task } from '../models/index.js';
+import { GitCredential, Project, SmtpAccount, Task } from '../models/index.js';
 import { notFound } from '../lib/errors.js';
+import { presentAlertState } from '../services/alerts.js';
 import { listAudit } from '../services/audit.js';
-import { getSharedCertificatePaths, readCertificate, readCertificateFiles } from '../services/certificates.js';
 import { getProcessMap } from '../services/pm2.js';
-import { resolveProjectPaths } from '../services/projectPaths.js';
+import { listDatabases } from '../services/postgres.js';
 import { collectServerMetrics } from '../services/serverMetrics.js';
 import { runHealthChecks } from '../services/system.js';
 import { findTaskWithLiveLog } from '../services/taskRunner.js';
@@ -16,106 +16,62 @@ import { parseId } from './helpers.js';
 const router = express.Router();
 
 /**
- * Add the own certificate of a project (SolarOps included) to the stats.
+ * Whether nginx serves a static site: active, exposed on a domain.
  */
-async function countCertificate(stats, project) {
-  const network = project.network;
-  const ownCertificate = network.certMethod === 'http' || network.certMethod === 'dns';
-
-  // Shared certificates are counted once each (countSharedCertificates).
-  if (!network.enabled || !ownCertificate) {
-    return;
-  }
-
-  const paths = await resolveProjectPaths(project);
-  const certificate = await readCertificate(paths, project.uid).catch(() => ({ exists: false }));
-
-  countStatus(stats, certificate);
+function isServed(project) {
+  return project.active && project.network.enabled && Boolean(project.network.domain);
 }
 
 /**
- * Add every shared certificate to the stats.
- */
-async function countSharedCertificates(stats) {
-  const certificates = await SharedCertificate.findAll();
-
-  for (const shared of certificates) {
-    const files = getSharedCertificatePaths(shared.name).files;
-    const certificate = await readCertificateFiles(files).catch(() => ({ exists: false }));
-
-    countStatus(stats, certificate);
-  }
-}
-
-/**
- * Count one certificate in its status bucket.
- */
-function countStatus(stats, certificate) {
-  stats.certificates.total += 1;
-
-  if (!certificate.exists) {
-    stats.certificates.missing += 1;
-  } else if (certificate.needsRenewal) {
-    stats.certificates.expiringSoon += 1;
-  } else {
-    stats.certificates.valid += 1;
-  }
-}
-
-/**
- * Numbers displayed on the dashboard. SolarOps itself is not counted as a
- * project, but its certificate is.
+ * Numbers displayed on the dashboard (SolarOps itself is not counted).
+ * Online: applications running in pm2, and static sites served by nginx.
  */
 router.get('/overview', async (req, res) => {
-  const projects = await Project.findAll();
+  const projects = (await Project.findAll()).filter((project) => !project.system);
   const { processes, error } = await getProcessMap();
 
   const stats = {
-    projects: { total: 0, active: 0, apps: 0, staticSites: 0, online: 0, errored: 0 },
-    certificates: { total: 0, valid: 0, expiringSoon: 0, missing: 0 },
-    databases: 0,
-    deployments: 0,
+    projects: {
+      total: projects.length,
+      active: 0,
+      apps: 0,
+      staticSites: 0,
+      online: 0,
+      appsOnline: 0,
+      staticOnline: 0,
+      errored: 0,
+    },
   };
 
-  await countSharedCertificates(stats);
-
   for (const project of projects) {
-    await countCertificate(stats, project);
-
-    if (project.system) {
-      continue;
-    }
-
     if (project.active) {
       stats.projects.active += 1;
     }
 
     if (project.isStatic) {
       stats.projects.staticSites += 1;
-    } else {
-      stats.projects.apps += 1;
+
+      if (isServed(project)) {
+        stats.projects.staticOnline += 1;
+      }
+
+      continue;
     }
+
+    stats.projects.apps += 1;
 
     const processInfo = processes.get(project.uid);
 
     if (processInfo && processInfo.status === 'online') {
-      stats.projects.online += 1;
+      stats.projects.appsOnline += 1;
     }
 
     if (processInfo && processInfo.status === 'errored') {
       stats.projects.errored += 1;
     }
-
-    if (project.database.enabled) {
-      stats.databases += 1;
-    }
-
-    if (project.deployment.enabled) {
-      stats.deployments += 1;
-    }
   }
 
-  stats.projects.total = projects.filter((project) => !project.system).length;
+  stats.projects.online = stats.projects.appsOnline + stats.projects.staticOnline;
 
   const recentTasks = await Task.findAll({
     include: ['project'],
@@ -132,6 +88,29 @@ router.get('/overview', async (req, res) => {
     processError: error,
     recentTasks: recentTasks.map((task) => task.toPublic()),
     recentAudit: await listAudit(8),
+  });
+});
+
+/**
+ * Badges of the menu: how many items each page lists. PostgreSQL is null
+ * when the server cannot be reached; alerts are the open ones.
+ */
+router.get('/counts', async (req, res) => {
+  const projects = await Project.findAll();
+  const databases = await listDatabases().catch(() => null);
+  let postgres = null;
+
+  if (databases !== null) {
+    postgres = databases.length;
+  }
+
+  res.json({
+    projects: projects.filter((project) => !project.system).length,
+    gitCredentials: await GitCredential.count(),
+    domains: projects.filter((project) => project.network.enabled && project.network.domain).length,
+    postgres,
+    mailRelays: await SmtpAccount.count(),
+    alerts: presentAlertState().open.length,
   });
 });
 

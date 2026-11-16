@@ -75,8 +75,8 @@
 
 <script>
 /**
- * Dashboard: key numbers (projects, then the server resources and health,
- * then certificates, databases and pipelines) over the projects drawn as a
+ * Dashboard: key numbers (projects online, server health, CPU, memory
+ * and storage) over the projects drawn as a
  * solar system filling the page. Health check details are on SolarOps's page.
  */
 import SolarSystem from '../components/dashboard/SolarSystem.vue';
@@ -157,39 +157,17 @@ export default {
     projectCount() {
       return this.projects.filter((project) => !project.system).length;
     },
-    /**
-     * Online, CPU, memory, storage, health, certificates, databases and
-     * pipelines.
-     */
+    /** Online, health, CPU, memory and storage. */
     tiles() {
       const stats = this.overview.stats;
       const server = this.overview.server;
 
       return [
-        {
-          label: 'Online',
-          icon: 'activity',
-          value: stats.projects.online,
-          total: stats.projects.apps,
-          caption: `Applications running${this.staticCaption(stats)}${this.erroredCaption(stats)}`,
-        },
+        this.onlineTile(stats.projects),
+        this.healthTile(),
         this.cpuTile(server.cpu),
         this.memoryTile(server.memory),
         this.storageTile(server.storage),
-        this.healthTile(),
-        this.certificatesTile(stats.certificates),
-        {
-          label: 'Databases',
-          icon: 'database',
-          value: stats.databases,
-          caption: 'PostgreSQL databases',
-        },
-        {
-          label: 'Pipelines',
-          icon: 'git-branch',
-          value: stats.deployments,
-          caption: 'Projects deployed from git',
-        },
       ];
     },
   },
@@ -214,6 +192,26 @@ export default {
     this.resizeObserver.disconnect();
   },
   methods: {
+    /** Applications running in pm2 and static sites served by nginx. */
+    onlineTile(projects) {
+      const parts = [`${projects.appsOnline} / ${projects.apps} apps`];
+
+      if (projects.staticSites > 0) {
+        parts.push(`${projects.staticOnline} / ${projects.staticSites} static sites`);
+      }
+
+      if (projects.errored > 0) {
+        parts.push(`${projects.errored} errored`);
+      }
+
+      return {
+        label: 'Online',
+        icon: 'activity',
+        value: projects.online,
+        total: projects.apps + projects.staticSites,
+        caption: parts.join(' · '),
+      };
+    },
     /** Server-wide CPU usage (since the previous refresh). */
     cpuTile(cpu) {
       return {
@@ -274,25 +272,6 @@ export default {
 
       return { ...tile, value: checks.length - failing.length, total: checks.length, caption, tone };
     },
-    certificatesTile(certificates) {
-      let caption = 'All certificates are valid';
-
-      if (certificates.expiringSoon > 0) {
-        caption = `${certificates.expiringSoon} expiring soon`;
-      } else if (certificates.missing > 0) {
-        caption = `${certificates.missing} not issued yet`;
-      } else if (certificates.total === 0) {
-        caption = 'No HTTPS domain yet';
-      }
-
-      return {
-        label: 'Certificates',
-        icon: 'shield',
-        value: certificates.valid,
-        total: certificates.total,
-        caption,
-      };
-    },
     /** Tiles with a destination are links. */
     tileElement(tile) {
       if (tile.to) {
@@ -339,20 +318,6 @@ export default {
 
       this.spaceTop = Math.max(Math.round(bottom + 16), 0);
       this.mainPadding = parseFloat(mainStyle.paddingTop) + parseFloat(mainStyle.paddingBottom);
-    },
-    staticCaption(stats) {
-      if (stats.projects.staticSites > 0) {
-        return ` · ${stats.projects.staticSites} static site(s)`;
-      }
-
-      return '';
-    },
-    erroredCaption(stats) {
-      if (stats.projects.errored > 0) {
-        return ` · ${stats.projects.errored} errored`;
-      }
-
-      return '';
     },
     /** Everything, health checks included (on load and Refresh). */
     async load() {
@@ -427,7 +392,7 @@ export default {
 /* Eight cards: two rows of four, one row on wide screens. */
 .dashboard-tiles {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -480,9 +445,9 @@ export default {
   border-color: rgba(255, 255, 255, 0.18);
 }
 
-@media (min-width: 1680px) {
+@media (max-width: 1180px) {
   .dashboard-tiles {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
