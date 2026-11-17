@@ -102,6 +102,14 @@
                         >
                           {{ planet.name }}
                         </text>
+                        <text
+                          v-if="planet.version"
+                          :y="planet.size + layout.labelSize * 2 + 4"
+                          class="solar-label solar-version"
+                          :style="{ fontSize: `${layout.labelSize * 0.82}px` }"
+                        >
+                          {{ planet.version }}
+                        </text>
                       </g>
                     </g>
                   </g>
@@ -274,7 +282,8 @@ function fitSystem(outerRadius, areaWidth, areaHeight) {
     // About 7 characters of label on each side of the outer orbit.
     const halfWidth = Math.max(outerRadius + labelSize * 3.6, MIN_HALF_WIDTH);
     // A planet in front of the sun, enlarged, with its label below it.
-    const front = (LARGEST_PLANET + labelSize + 6) * (1 + DEPTH);
+    // Two label lines: the name, and the version under it.
+    const front = (LARGEST_PLANET + labelSize * 2 + 8) * (1 + DEPTH);
     const halfHeight = Math.max(outerRadius * TILT + front, SUN_RADIUS * 2.8);
 
     unitsPerPixel = Math.max((halfWidth * 2) / areaWidth, (halfHeight * 2) / areaHeight, MIN_UNITS_PER_PIXEL);
@@ -440,6 +449,7 @@ export default {
         return {
           uid: project.uid,
           name: project.name,
+          version: project.version,
           state: health.state,
           reasons: health.reasons,
           size: sizeOf(project),
@@ -746,6 +756,11 @@ export default {
   stroke: rgba(6, 6, 10, 0.9);
   stroke-width: 3px;
   stroke-linejoin: round;
+}
+
+.solar-version {
+  fill: var(--text-faint);
+  font-family: var(--font-mono);
 }
 
 .solar-planet:hover .solar-label,

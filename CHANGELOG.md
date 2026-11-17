@@ -7,6 +7,19 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
+## [Unreleased]
+
+### Added
+
+- **Project versions**: the `version` of a project's `package.json` (SolarOps's own for SolarOps)
+  shows under its planet on the dashboard, beside its type in the projects list, and in its page
+  header.
+
+### Changed
+
+- A project's page header reads status · version · public URL: the identifier and the port are
+  gone from it (they stay in its Settings tab).
+
 ## [0.3.1] - 2026-11-17
 
 ### Added
@@ -137,6 +150,7 @@ First version: everything SolarOps does when the history starts.
   `npm run rollback`, and database migrations applied after a backup.
 - Docker test bench, ESLint and Prettier, documentation in `docs/`.
 
+[Unreleased]: https://github.com/myeti/solar-ops/compare/0.3.1...develop
 [0.3.1]: https://github.com/myeti/solar-ops/compare/0.3.0...0.3.1
 [0.3.0]: https://github.com/myeti/solar-ops/compare/0.2.2...0.3.0
 [0.2.2]: https://github.com/myeti/solar-ops/compare/0.2.1...0.2.2
