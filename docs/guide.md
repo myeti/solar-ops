@@ -237,8 +237,9 @@ Umami under *Settings › API keys* (stored encrypted). *Test connection* checks
 
 Once enabled:
 
-- the **Projects** page gets an Analytics column: visitors now (last 5 minutes), and visits today
-  and over the past 7 days, of the Umami website whose domain is the project's public URL
+- the **Projects** page gets an Analytics column: visitors now (last 5 minutes), and visits over
+  the last 24 hours ("daily") and the last 7 days ("weekly"), counted like Umami's own views, of
+  the Umami website whose domain is the project's public URL
   (`PUBLIC_URL`), linking to its Umami page;
 - the dashboard gets two cards: visitors now and visits over the past 7 days, every website of
   the Umami account summed;

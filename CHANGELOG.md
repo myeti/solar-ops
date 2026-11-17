@@ -15,6 +15,11 @@ date, and the version in `package.json` follows.
   now, 24 hours of usage (one point a minute, kept in memory and lost when SolarOps restarts) and
   the processes using the most, with their project, refreshed every 3 seconds.
 
+### Fixed
+
+- The daily visits of the projects list are the last 24 hours, as in Umami ("Last 24 hours"): they
+  counted from midnight on the server's clock (often UTC), so they dropped to 0 every night.
+
 ## [0.3.0] - 2026-11-16
 
 ### Added
