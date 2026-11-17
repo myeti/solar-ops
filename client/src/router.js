@@ -100,6 +100,12 @@ const routes = [
     meta: { title: 'Activity' },
   },
   {
+    path: '/monitoring',
+    name: 'monitoring',
+    component: () => import('./views/MonitoringView.vue'),
+    meta: { title: 'Monitoring' },
+  },
+  {
     path: '/alerts',
     name: 'alerts',
     component: () => import('./views/AlertsView.vue'),

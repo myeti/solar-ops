@@ -8,7 +8,7 @@
 - [Databases](#databases) · [Mail](#mail) · [Environment variables](#environment-variables)
 - [Domains and HTTPS](#domains-and-https) · [Shared certificates](#shared-certificates-wildcards) ·
   [DNS records](#dns-records) · [Restricting access](#restricting-access)
-- [Dashboard](#dashboard) · [Analytics](#analytics) · [Alerts](#alerts) ·
+- [Dashboard](#dashboard) · [Analytics](#analytics) · [Monitoring](#monitoring) · [Alerts](#alerts) ·
   [Admins and login](#admins-and-login)
 - [Existing projects and databases](#existing-projects-and-databases)
 - [SolarOps itself](#solarops-itself)
@@ -248,6 +248,20 @@ Once enabled:
 
 SolarOps reads Umami at most every 30 seconds (Umami Cloud allows 50 calls every 15 seconds per
 key). Self-hosted Umami needs a version with API keys (v3).
+
+## Monitoring
+
+**System › Monitoring** shows, for the CPU and the memory:
+
+- the **top processes** right now, refreshed every 3 seconds while the page is open (*Pause* stops
+  it): their name, the SolarOps project they belong to (or their user), their command line (URL
+  passwords masked) and what they use. A process's CPU is a share of the whole server (100% = every
+  core busy), measured between two readings;
+- the **last 24 hours** of the server's usage, one point a minute (the CPU averaged over that
+  minute); hover the chart for the values.
+
+Nothing is stored: the history lives in SolarOps's memory and starts again when SolarOps restarts.
+The process list needs Linux (`/proc`).
 
 ## Alerts
 
