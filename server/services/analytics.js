@@ -220,16 +220,14 @@ async function listUmamiWebsites(settings) {
 }
 
 /**
- * Visitors now (last 5 minutes), visits today (since midnight, server
- * time) and over the past 7 days.
+ * Visitors now (last 5 minutes), and visits over the last 24 hours and the
+ * last 7 days, rolling like Umami's own "Last 24 hours" view (no midnight,
+ * no timezone).
  */
 async function readUmamiWebsite(settings, website, now) {
-  const midnight = new Date(now);
-  midnight.setHours(0, 0, 0, 0);
-
   const [active, today, week] = await Promise.all([
     umamiGet(settings, `/websites/${website.id}/active`),
-    umamiGet(settings, `/websites/${website.id}/stats`, { startAt: midnight.getTime(), endAt: now }),
+    umamiGet(settings, `/websites/${website.id}/stats`, { startAt: now - DAY_MS, endAt: now }),
     umamiGet(settings, `/websites/${website.id}/stats`, { startAt: now - 7 * DAY_MS, endAt: now }),
   ]);
 
