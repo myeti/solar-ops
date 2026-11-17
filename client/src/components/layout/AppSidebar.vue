@@ -136,6 +136,7 @@ export default {
           items: [
             { to: '/projects/solarops', label: 'SolarOps', icon: 'sun' },
             { to: '/activity', label: 'Activity', icon: 'activity' },
+            { to: '/monitoring', label: 'Monitoring', icon: 'monitor' },
             { to: '/alerts', label: 'Alerts', icon: 'bell', count: 'alerts' },
             { to: '/settings', label: 'Settings', icon: 'sliders' },
           ],
