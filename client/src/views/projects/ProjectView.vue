@@ -24,14 +24,20 @@
           />
         </template>
         <template #subtitle>
+          <!-- Status · version · public URL, each one when there is one. -->
           <span class="project-meta">
             <StatusPill :status="status" />
-            <span class="mono small">{{ project.uid }}</span>
-            <span v-if="project.port" class="mono small text-faint">:{{ project.port }}</span>
-            <a v-if="publicUrl" :href="publicUrl" target="_blank" rel="noopener noreferrer" class="small row-sm">
-              {{ project.network.domain }}
-              <FeatherIcon name="external-link" :size="13" />
-            </a>
+            <template v-if="project.version">
+              <span class="project-meta-separator">·</span>
+              <span class="mono small text-dim">{{ project.version }}</span>
+            </template>
+            <template v-if="publicUrl">
+              <span class="project-meta-separator">·</span>
+              <a :href="publicUrl" target="_blank" rel="noopener noreferrer" class="small row-sm">
+                {{ project.network.domain }}
+                <FeatherIcon name="external-link" :size="13" />
+              </a>
+            </template>
           </span>
         </template>
         <template v-if="!project.system" #actions>
@@ -310,7 +316,11 @@ export default {
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
+}
+
+.project-meta-separator {
+  color: var(--text-faint);
 }
 
 .project-banner {

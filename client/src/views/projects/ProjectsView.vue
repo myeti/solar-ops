@@ -87,7 +87,12 @@
                       <RouterLink :to="`/projects/${row.project.uid}`" class="projects-link truncate">
                         {{ row.project.name }}
                       </RouterLink>
-                      <span class="tiny text-faint truncate">{{ row.typeLabel }}</span>
+                      <span class="tiny text-faint truncate">
+                        {{ row.typeLabel }}
+                        <template v-if="row.version">
+                          · <span class="mono">{{ row.version }}</span>
+                        </template>
+                      </span>
                     </div>
                   </div>
                 </td>
@@ -373,6 +378,7 @@ export default {
         status,
         pills: this.pillsOf(project, status),
         typeLabel: this.typeLabelOf(project),
+        version: project.version,
         services: this.servicesOf(project),
         domain,
         publicUrl,

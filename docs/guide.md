@@ -30,7 +30,9 @@
 
 The **Projects** page lists every project in a table, sorted by name, sortable by any column:
 status, services (git, database, mail, network), public URL (opens the site in a new tab), CPU,
-memory and uptime, and, with [analytics](#analytics), the visits. Click a row to open the project;
+memory and uptime, and, with [analytics](#analytics), the visits. A project's version (the
+`version` of its `package.json`) shows beside its type, under its planet on the dashboard and in
+its page header. Click a row to open the project;
 *Refresh* reloads the numbers (nothing reloads by itself).
 
 Each time it loads, the list checks that every project is live: an application answers on its port
