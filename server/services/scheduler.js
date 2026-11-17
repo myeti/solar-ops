@@ -1,6 +1,7 @@
 /**
  * Periodic jobs:
  *   - every minute (SOLAROPS_ALERT_CHECK_SECONDS): check the alert rules,
+ *   - every minute: sample the server CPU and memory (System › Monitoring),
  *   - every hour: purge expired sessions / magic links,
  *   - every 12 hours (and shortly after startup): renew certificates that
  *     expire within 30 days (project and shared certificates with
@@ -13,6 +14,7 @@ import logger from '../lib/logger.js';
 import { runAlertCheck } from './alerts.js';
 import { purgeExpiredAuthData } from './auth.js';
 import { runDueBackups } from './backups.js';
+import { SAMPLE_MS as USAGE_SAMPLE_MS, recordUsageSample } from './monitoring.js';
 import {
   findCertificatesToRenew,
   findSharedCertificatesToRenew,
@@ -78,12 +80,14 @@ export function startScheduler() {
   const pruneTasks = safely('prune-tasks', () => pruneOldTasks(TASK_RETENTION_DAYS));
   const backups = safely('database-backups', runDueBackups);
   const alerts = safely('alerts', () => runAlertCheck());
+  const usage = safely('usage-history', recordUsageSample);
 
   timers.push(setInterval(purgeAuth, HOUR));
   timers.push(setInterval(renewCertificates, 12 * HOUR));
   timers.push(setInterval(pruneTasks, 24 * HOUR));
   timers.push(setInterval(backups, 10 * MINUTE));
   timers.push(setInterval(alerts, Math.max(10, config.alertCheckSeconds) * 1000));
+  timers.push(setInterval(usage, USAGE_SAMPLE_MS));
   timers.push(setTimeout(renewCertificates, 2 * MINUTE));
   timers.push(setTimeout(pruneTasks, 5 * MINUTE));
   timers.push(setTimeout(backups, MINUTE));
@@ -91,6 +95,9 @@ export function startScheduler() {
   for (const timer of timers) {
     timer.unref();
   }
+
+  // Starts the first CPU window of the usage history (System › Monitoring).
+  usage();
 }
 
 /**

@@ -15,6 +15,7 @@ const AUDIT_ACTIONS = {
   'admin.delete': { label: 'Removed admin', icon: 'user-x', tone: 'red' },
   'settings.update': { label: 'Updated SolarOps settings', icon: 'sliders' },
   'alerts.update': { label: 'Updated the alert settings', icon: 'bell' },
+  'analytics.update': { label: 'Updated the analytics connector', icon: 'bar-chart-2' },
   'alerts.test': { label: 'Sent a test alert', icon: 'bell' },
   'alerts.sent': { label: 'Sent an alert e-mail:', icon: 'bell', tone: 'amber' },
   'alerts.failed': { label: 'Could not send an alert e-mail:', icon: 'bell', tone: 'red' },
@@ -61,6 +62,7 @@ const AUDIT_ACTIONS = {
   'project.database-unlink': { label: 'Unlinked the database of', icon: 'scissors' },
   'project.network-update': { label: 'Updated the network of', icon: 'globe' },
   'project.network-apply': { label: 'Applied the nginx config of', icon: 'globe' },
+  'project.access-update': { label: 'Changed the access protection of', icon: 'lock', tone: 'amber' },
   'project.dns-records': { label: 'Pointed the DNS records at this server for', icon: 'navigation', tone: 'cyan' },
   'project.certificate': { label: 'Requested a certificate for', icon: 'shield', tone: 'cyan' },
 };

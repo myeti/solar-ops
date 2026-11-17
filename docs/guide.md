@@ -7,8 +7,9 @@
 - [Deployments](#deployments) · [Webhooks](#webhooks)
 - [Databases](#databases) · [Mail](#mail) · [Environment variables](#environment-variables)
 - [Domains and HTTPS](#domains-and-https) · [Shared certificates](#shared-certificates-wildcards) ·
-  [DNS records](#dns-records)
-- [Dashboard](#dashboard) · [Alerts](#alerts) · [Admins and login](#admins-and-login)
+  [DNS records](#dns-records) · [Restricting access](#restricting-access)
+- [Dashboard](#dashboard) · [Analytics](#analytics) · [Monitoring](#monitoring) · [Alerts](#alerts) ·
+  [Admins and login](#admins-and-login)
 - [Existing projects and databases](#existing-projects-and-databases)
 - [SolarOps itself](#solarops-itself)
 
@@ -26,6 +27,25 @@
    of every operation are one click away.
 
 ## Projects
+
+The **Projects** page lists every project in a table, sorted by name, sortable by any column:
+status, services (git, database, mail, network), public URL (opens the site in a new tab), CPU,
+memory and uptime, and, with [analytics](#analytics), the visits. Click a row to open the project;
+*Refresh* reloads the numbers (nothing reloads by itself).
+
+Each time it loads, the list checks that every project is live: an application answers on its port
+(one request, 1.5 seconds at most), a static site has its build (`index.html` in its public folder).
+
+| Status | Means |
+| --- | --- |
+| Online (green) | Live, and served on its domain |
+| Live (green) + Unreachable (amber) | Live, but no domain serves it |
+| Down (red) | Not answering (an application), not built (a static site), even with a domain |
+| Stopped (gray) | An application stopped in pm2 |
+| Inactive (gray) | A deactivated project |
+
+**Unstable** (amber) is added while pm2 counts unstable restarts: the app exited less than
+10 seconds after starting, during its first 2.5 minutes (pm2 resets the count when it gives up).
 
 - **Applications** run with pm2 (start / stop / restart, live logs rotated by pm2-logrotate) on
   their own port, given as `PORT`. Each new application gets the first free slot of 3000, 3010,
@@ -119,7 +139,7 @@ Variables given to a project at startup (later sources win):
 | Source | Variables |
 | --- | --- |
 | system | `NODE_ENV=production`, `SOLAROPS_PROJECT`, `ROOT_DIR` (the project's `repo/` folder, where it runs and builds), `PORT` (applications: the project port), `JWT_SECRET` (32 random characters generated once per project, stored encrypted, masked like every secret) |
-| network | `PUBLIC_URL`, when the project has a domain: `https://<domain>` once a certificate method is chosen, `http://<domain>` otherwise |
+| network | `PUBLIC_URL`, when the project has a domain: `https://<domain>` once a certificate method is chosen, `http://<domain>` otherwise; `ANALYTICS_URL`, the tracker script, when [analytics](#analytics) are on |
 | database | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DATABASE_URL` |
 | mail | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` |
 | custom | anything you define in the **Environment** tab, encrypted at rest |
@@ -183,13 +203,66 @@ through the API of one of your DNS accounts (the same accounts as for DNS-01 cer
   pointing elsewhere is reported (Let's Encrypt tries IPv6 first);
 - every run is in the audit journal; on OVHcloud, the zone is refreshed so changes go live.
 
+### Restricting access
+
+The **Access** panel of the Network tab keeps a website private (a staging site, an admin tool),
+enforced by nginx before the request reaches the project:
+
+- **Users**: visitors are asked for a user name and password (HTTP basic auth). Passwords need 8
+  characters or more and are stored as SHA-512 crypt hashes in `<project>/etc/htpasswd`, never in
+  clear; leave a password empty to keep it. Use HTTPS with *Force HTTPS*: the panel warns when a
+  password could travel over plain HTTP.
+- **Allowed IP addresses**: one per line, IPv4 or IPv6, or ranges (`198.51.100.0/24`). Other
+  visitors get `403`. *Add my address* adds the one you are using.
+- **Both**: the allowed addresses get in directly, everyone else needs a password.
+
+Let's Encrypt challenges stay open, so renewals keep working, and the health checks reach the app
+on its port, not through nginx. Behind a proxying CDN (Cloudflare's orange cloud), nginx sees the
+CDN's addresses: use users rather than IP addresses there. Every change is in the audit journal
+(user names and addresses only).
+
 ## Dashboard
 
-Online applications, server CPU / memory / storage, health checks, certificates, databases and
-pipelines, over your projects drawn as a tilted, animated solar system: SolarOps in purple,
+Projects online (applications running, and static sites served on their domain), server health
+checks, CPU, memory and storage (and the visits, with [analytics](#analytics)), over your projects drawn as a tilted, animated solar system: SolarOps in purple,
 healthy projects in blue, those needing attention in red (not running, missing or expired
 certificate, failed deployment), disabled ones in gray. Ringed planets are on the web; click one
 to open it.
+
+## Analytics
+
+*Settings › Analytics* connects SolarOps to [Umami](https://umami.is), self-hosted or Umami Cloud:
+its address (`https://umami.example.com`, or `https://cloud.umami.is`) and an API key, created in
+Umami under *Settings › API keys* (stored encrypted). *Test connection* checks both before saving.
+
+Once enabled:
+
+- the **Projects** page gets an Analytics column: visitors now (last 5 minutes), and visits over
+  the last 24 hours ("daily") and the last 7 days ("weekly"), counted like Umami's own views, of
+  the Umami website whose domain is the project's public URL
+  (`PUBLIC_URL`), linking to its Umami page;
+- the dashboard gets two cards: visitors now and visits over the past 7 days, every website of
+  the Umami account summed;
+- every project gets `ANALYTICS_URL`, the address of the tracker script
+  (`https://umami.example.com/script.js`, `https://cloud.umami.is/script.js` for Umami Cloud). Restart
+  a project to pick it up; the website id (`data-website-id`) is still yours to set.
+
+SolarOps reads Umami at most every 30 seconds (Umami Cloud allows 50 calls every 15 seconds per
+key). Self-hosted Umami needs a version with API keys (v3).
+
+## Monitoring
+
+**System › Monitoring** shows, for the CPU and the memory:
+
+- the **top processes** right now, refreshed every 3 seconds while the page is open (*Pause* stops
+  it): their name, the SolarOps project they belong to (or their user), their command line (URL
+  passwords masked) and what they use. A process's CPU is a share of the whole server (100% = every
+  core busy), measured between two readings;
+- the **last 24 hours** of the server's usage, one point a minute (the CPU averaged over that
+  minute); hover the chart for the values.
+
+Nothing is stored: the history lives in SolarOps's memory and starts again when SolarOps restarts.
+The process list needs Linux (`/proc`).
 
 ## Alerts
 

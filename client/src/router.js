@@ -100,6 +100,12 @@ const routes = [
     meta: { title: 'Activity' },
   },
   {
+    path: '/monitoring',
+    name: 'monitoring',
+    component: () => import('./views/MonitoringView.vue'),
+    meta: { title: 'Monitoring' },
+  },
+  {
     path: '/alerts',
     name: 'alerts',
     component: () => import('./views/AlertsView.vue'),
@@ -114,6 +120,11 @@ const routes = [
       { path: 'access', name: 'settings-access', component: () => import('./views/settings/AccessSettings.vue') },
       { path: 'account', name: 'settings-account', component: () => import('./views/settings/AccountSettings.vue') },
       { path: 'system', name: 'settings-system', component: () => import('./views/settings/SystemSettings.vue') },
+      {
+        path: 'analytics',
+        name: 'settings-analytics',
+        component: () => import('./views/settings/AnalyticsSettings.vue'),
+      },
     ],
   },
   {

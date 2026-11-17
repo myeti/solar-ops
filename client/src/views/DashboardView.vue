@@ -45,7 +45,7 @@
           <span><strong>pm2 is unreachable:</strong> {{ overview.processError }}</span>
         </div>
 
-        <div class="dashboard-tiles">
+        <div class="dashboard-tiles" :class="{ 'has-analytics': tiles.length > 5 }">
           <component
             :is="tileElement(tile)"
             v-for="(tile, index) in tiles"
@@ -75,8 +75,8 @@
 
 <script>
 /**
- * Dashboard: key numbers (projects, then the server resources and health,
- * then certificates, databases and pipelines) over the projects drawn as a
+ * Dashboard: key numbers (projects online, server health, CPU, memory
+ * and storage, then the visits when analytics are on) over the projects drawn as a
  * solar system filling the page. Health check details are on SolarOps's page.
  */
 import SolarSystem from '../components/dashboard/SolarSystem.vue';
@@ -92,6 +92,8 @@ export default {
       overview: null,
       projects: [],
       health: null,
+      /** GET /api/analytics: the two visits cards, when analytics are on. */
+      analytics: null,
       loading: false,
       // Where the free space starts below the header and numbers, in pixels.
       spaceTop: 0,
@@ -157,40 +159,23 @@ export default {
     projectCount() {
       return this.projects.filter((project) => !project.system).length;
     },
-    /**
-     * Online, CPU, memory, storage, health, certificates, databases and
-     * pipelines.
-     */
+    /** Online, health, CPU, memory and storage, then the visits when analytics are on. */
     tiles() {
       const stats = this.overview.stats;
       const server = this.overview.server;
-
-      return [
-        {
-          label: 'Online',
-          icon: 'activity',
-          value: stats.projects.online,
-          total: stats.projects.apps,
-          caption: `Applications running${this.staticCaption(stats)}${this.erroredCaption(stats)}`,
-        },
+      const tiles = [
+        this.onlineTile(stats.projects),
+        this.healthTile(),
         this.cpuTile(server.cpu),
         this.memoryTile(server.memory),
         this.storageTile(server.storage),
-        this.healthTile(),
-        this.certificatesTile(stats.certificates),
-        {
-          label: 'Databases',
-          icon: 'database',
-          value: stats.databases,
-          caption: 'PostgreSQL databases',
-        },
-        {
-          label: 'Pipelines',
-          icon: 'git-branch',
-          value: stats.deployments,
-          caption: 'Projects deployed from git',
-        },
       ];
+
+      if (this.analytics && this.analytics.enabled) {
+        tiles.push(...this.analyticsTiles(this.analytics));
+      }
+
+      return tiles;
     },
   },
   mounted() {
@@ -205,6 +190,7 @@ export default {
       // No refresh while the tab is in the background.
       if (!document.hidden) {
         this.loadProjects();
+        this.loadAnalytics();
       }
     }, REFRESH_INTERVAL_MS);
   },
@@ -214,6 +200,47 @@ export default {
     this.resizeObserver.disconnect();
   },
   methods: {
+    /** Applications running in pm2 and static sites served by nginx. */
+    onlineTile(projects) {
+      const parts = [`${projects.appsOnline} / ${projects.apps} apps`];
+
+      if (projects.staticSites > 0) {
+        parts.push(`${projects.staticOnline} / ${projects.staticSites} static sites`);
+      }
+
+      if (projects.errored > 0) {
+        parts.push(`${projects.errored} errored`);
+      }
+
+      return {
+        label: 'Online',
+        icon: 'activity',
+        value: projects.online,
+        total: projects.apps + projects.staticSites,
+        caption: parts.join(' · '),
+      };
+    },
+    /** Visitors now and visits over the past 7 days, every website summed. */
+    analyticsTiles(analytics) {
+      const live = { label: 'Visitors now', icon: 'eye', to: '/projects' };
+      const week = { label: 'Past 7 days', icon: 'bar-chart-2', to: '/projects' };
+
+      if (analytics.error) {
+        const failed = { value: '—', caption: 'Umami unreachable', tone: 'warning' };
+
+        return [
+          { ...live, ...failed },
+          { ...week, ...failed },
+        ];
+      }
+
+      const websites = `${analytics.websites.length} website(s)`;
+
+      return [
+        { ...live, value: analytics.totals.active.toLocaleString(), caption: `Last 5 minutes · ${websites}` },
+        { ...week, value: analytics.totals.week.toLocaleString(), caption: `Visits · ${websites}` },
+      ];
+    },
     /** Server-wide CPU usage (since the previous refresh). */
     cpuTile(cpu) {
       return {
@@ -274,25 +301,6 @@ export default {
 
       return { ...tile, value: checks.length - failing.length, total: checks.length, caption, tone };
     },
-    certificatesTile(certificates) {
-      let caption = 'All certificates are valid';
-
-      if (certificates.expiringSoon > 0) {
-        caption = `${certificates.expiringSoon} expiring soon`;
-      } else if (certificates.missing > 0) {
-        caption = `${certificates.missing} not issued yet`;
-      } else if (certificates.total === 0) {
-        caption = 'No HTTPS domain yet';
-      }
-
-      return {
-        label: 'Certificates',
-        icon: 'shield',
-        value: certificates.valid,
-        total: certificates.total,
-        caption,
-      };
-    },
     /** Tiles with a destination are links. */
     tileElement(tile) {
       if (tile.to) {
@@ -340,28 +348,27 @@ export default {
       this.spaceTop = Math.max(Math.round(bottom + 16), 0);
       this.mainPadding = parseFloat(mainStyle.paddingTop) + parseFloat(mainStyle.paddingBottom);
     },
-    staticCaption(stats) {
-      if (stats.projects.staticSites > 0) {
-        return ` · ${stats.projects.staticSites} static site(s)`;
-      }
-
-      return '';
-    },
-    erroredCaption(stats) {
-      if (stats.projects.errored > 0) {
-        return ` · ${stats.projects.errored} errored`;
-      }
-
-      return '';
-    },
     /** Everything, health checks included (on load and Refresh). */
     async load() {
+      this.loadAnalytics();
       await this.loadProjects();
 
       try {
         this.health = await this.$api.get('/system/health');
       } catch {
         this.health = { checks: [] };
+      }
+    },
+    /**
+     * Visits, on their own: a slow analytics service never delays the rest
+     * (the server caches them 30 seconds).
+     */
+    async loadAnalytics() {
+      try {
+        this.analytics = await this.$api.get('/analytics');
+        this.$nextTick(() => this.measureSpace());
+      } catch {
+        this.analytics = null;
       }
     },
     /** Numbers and planets only: the health checks run commands on the server. */
@@ -424,11 +431,21 @@ export default {
   z-index: 1;
 }
 
-/* Eight cards: two rows of four, one row on wide screens. */
+/* Five cards in a row, seven with analytics (two rows of four and three on medium screens). */
 .dashboard-tiles {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
+}
+
+.dashboard-tiles.has-analytics {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+@media (max-width: 1600px) {
+  .dashboard-tiles.has-analytics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .dashboard-tiles .stat-value {
@@ -480,14 +497,16 @@ export default {
   border-color: rgba(255, 255, 255, 0.18);
 }
 
-@media (min-width: 1680px) {
-  .dashboard-tiles {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+@media (max-width: 1180px) {
+  .dashboard-tiles,
+  .dashboard-tiles.has-analytics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 760px) {
-  .dashboard-tiles {
+  .dashboard-tiles,
+  .dashboard-tiles.has-analytics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

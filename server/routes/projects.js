@@ -13,6 +13,7 @@ import { FOLDER_NAME_PATTERN, Validator } from '../lib/validation.js';
 import { recordAudit } from '../services/audit.js';
 import { listProjectVariables, renderRedactedDotenv } from '../services/environment.js';
 import { getGeneralSettings } from '../services/settings.js';
+import { isLive } from '../services/health.js';
 import { measureProjectStorage } from '../services/storage.js';
 import { guardSystemProject } from '../services/systemProject.js';
 import {
@@ -59,6 +60,11 @@ function validateStartCommand(input, value) {
   }
 }
 
+/**
+ * Every project. With ?probe=1 (the projects list), each one also says
+ * whether it is live right now (`live`, services/health.js): the probes run
+ * at once, a second and a half at most.
+ */
 router.get('/', async (req, res) => {
   // SolarOps itself first, then projects by name.
   const projects = await Project.findAll({
@@ -72,6 +78,14 @@ router.get('/', async (req, res) => {
 
   for (const project of projects) {
     result.push(await presentProject(project, { processes, processError: error }));
+  }
+
+  if (req.query.probe === '1') {
+    const probes = await Promise.all(projects.map((project, index) => isLive(project, result[index].process)));
+
+    probes.forEach((live, index) => {
+      result[index].live = live;
+    });
   }
 
   res.json({ projects: result, processError: error });

@@ -32,6 +32,7 @@ export default {
         { to: '/settings/access', label: 'Access & admins', icon: 'users' },
         { to: '/settings/account', label: 'My account', icon: 'user' },
         { to: '/settings/system', label: 'System', icon: 'cpu' },
+        { to: '/settings/analytics', label: 'Analytics', icon: 'bar-chart-2' },
       ],
     };
   },

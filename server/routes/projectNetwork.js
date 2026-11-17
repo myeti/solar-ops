@@ -7,6 +7,15 @@ import { DnsAccount, Project, SharedCertificate } from '../models/index.js';
 import { DEFAULT_MAX_UPLOAD_MB } from '../models/Project.js';
 import { badRequest } from '../lib/errors.js';
 import { DOMAIN_OR_WILDCARD_PATTERN, Validator } from '../lib/validation.js';
+import {
+  ACCESS_USERNAME_PATTERN,
+  MAX_ACCESS_USERS,
+  MAX_ALLOWED_IPS,
+  accessOf,
+  hashAccessPassword,
+  normalizeAllowedIp,
+  publicAccess,
+} from '../services/access.js';
 import { recordAudit } from '../services/audit.js';
 import { queueCertificate } from '../services/certbot.js';
 import { uncoveredDomains } from '../services/certificates.js';
@@ -261,6 +270,131 @@ router.put('/', async (req, res) => {
   }
 
   res.json({ project: await presentProject(project), applied, applyError });
+});
+
+/** Shortest password of a new access user. */
+const MIN_ACCESS_PASSWORD = 8;
+
+function refuseSystemAccess(project) {
+  if (project.system) {
+    throw badRequest("SolarOps's own access is its sign-in: it cannot be restricted here.");
+  }
+}
+
+/**
+ * Access protection (password and / or allowed IPs), and the IP address
+ * SolarOps sees for this browser (to allow it).
+ */
+router.get('/access', (req, res) => {
+  refuseSystemAccess(req.project);
+
+  res.json({ access: publicAccess(req.project.network), yourIp: req.ip });
+});
+
+/**
+ * Body: { enabled, users: [{ username, password }], allowedIps: [string] }.
+ * An empty password keeps the user's current one.
+ */
+router.put('/access', async (req, res) => {
+  const project = req.project;
+  refuseSystemAccess(project);
+
+  const input = new Validator(req.body);
+  const enabled = input.boolean('enabled', { required: true });
+  input.assertValid();
+
+  const givenUsers = req.body.users ?? [];
+  const givenIps = req.body.allowedIps ?? [];
+
+  if (!Array.isArray(givenUsers) || givenUsers.length > MAX_ACCESS_USERS) {
+    throw badRequest(`Up to ${MAX_ACCESS_USERS} users.`, { fields: { users: 'Invalid list.' } });
+  }
+
+  if (!Array.isArray(givenIps) || givenIps.length > MAX_ALLOWED_IPS) {
+    throw badRequest(`Up to ${MAX_ALLOWED_IPS} addresses.`, { fields: { allowedIps: 'Invalid list.' } });
+  }
+
+  const current = new Map(accessOf(project.network).users.map((user) => [user.username, user.hash]));
+  const users = [];
+
+  for (const entry of givenUsers) {
+    const username = String(entry?.username ?? '').trim();
+    const password = String(entry?.password ?? '');
+
+    if (!ACCESS_USERNAME_PATTERN.test(username)) {
+      throw badRequest(`Invalid user name "${username}": letters, digits, ".", "_", "@" and "-" only.`, {
+        fields: { users: 'Invalid user name.' },
+      });
+    }
+
+    if (users.some((user) => user.username === username)) {
+      throw badRequest(`The user "${username}" is listed twice.`, { fields: { users: 'Duplicate user.' } });
+    }
+
+    let hash = current.get(username);
+
+    if (password !== '') {
+      if (password.length < MIN_ACCESS_PASSWORD || password.length > 256 || /[\r\n]/.test(password)) {
+        throw badRequest(`The password of "${username}" needs ${MIN_ACCESS_PASSWORD} to 256 characters, on one line.`, {
+          fields: { users: 'Invalid password.' },
+        });
+      }
+
+      hash = await hashAccessPassword(password);
+    }
+
+    if (!hash) {
+      throw badRequest(`"${username}" needs a password.`, { fields: { users: 'Password missing.' } });
+    }
+
+    users.push({ username, hash });
+  }
+
+  const allowedIps = [];
+
+  for (const value of givenIps) {
+    if (String(value).trim() === '') {
+      continue;
+    }
+
+    const ip = normalizeAllowedIp(value);
+
+    if (ip === null) {
+      throw badRequest(`Not an IP address or range: ${String(value).slice(0, 60)}`, {
+        fields: { allowedIps: 'Invalid address.' },
+      });
+    }
+
+    if (!allowedIps.includes(ip)) {
+      allowedIps.push(ip);
+    }
+  }
+
+  if (enabled && users.length === 0 && allowedIps.length === 0) {
+    throw badRequest('Add a user or an allowed IP address to restrict access.', {
+      fields: { users: 'A user or an address is needed.' },
+    });
+  }
+
+  project.networkConfig = { ...project.network, access: { enabled, users, allowedIps } };
+  await project.save();
+  await recordAudit({
+    req,
+    action: 'project.access-update',
+    target: project.uid,
+    details: { enabled, users: users.map((user) => user.username), allowedIps },
+  });
+
+  let applied = null;
+  let applyError = null;
+
+  try {
+    applied = await applyProjectNginx(project);
+  } catch (error) {
+    applyError = error.message;
+  }
+
+  res.json({ project: await presentProject(project), access: publicAccess(project.network), applied, applyError });
 });
 
 /**

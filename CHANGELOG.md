@@ -7,6 +7,55 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
+## [0.3.1] - 2026-11-17
+
+### Added
+
+- **Monitoring** (System › Monitoring): CPU and memory side by side, each with its value right
+  now, 24 hours of usage (one point a minute, kept in memory and lost when SolarOps restarts) and
+  the processes using the most, with their project, refreshed every 3 seconds.
+
+### Fixed
+
+- The daily visits of the projects list are the last 24 hours, as in Umami ("Last 24 hours"): they
+  counted from midnight on the server's clock (often UTC), so they dropped to 0 every night.
+
+## [0.3.0] - 2026-11-16
+
+### Added
+
+- A **Projects** section in the left menu, between Workspace and Infrastructure: every project,
+  with an icon for its type (application or static site), in amber when it needs attention and
+  dimmed when disabled (the reasons in its tooltip).
+- **Access protection** of a website (Network › Access): a password asked by nginx (users stored
+  as hashes), allowed IP addresses or ranges, or both (allowed addresses skip the password).
+  Let's Encrypt renewals keep working; the Overview says when access is restricted.
+- **Analytics** (Settings › Analytics): connect Umami, self-hosted or Cloud, with its address and
+  an API key. The projects list shows each project's visitors now, and its visits today and over
+  7 days (the Umami website matching its public URL, linked); the dashboard adds two cards (visitors now, visits over
+  7 days); every project gets `ANALYTICS_URL`, the tracker script.
+- **Counts in the left menu**: Projects, Git credentials, Domains & SSL (exposed domains),
+  PostgreSQL (databases on the server) and Mail relays show how many items they list; Alerts shows
+  the open alerts, in amber.
+
+### Changed
+
+- The projects list is a table, one project per row, sorted by name and sortable by every column:
+  status, services, public URL, CPU / memory / uptime, and analytics. A Refresh button reloads it.
+- The projects list checks that every project is live when it loads (an application answers on its
+  port, a static site is built): **Online** when it is served on its domain, **Live** and
+  **Unreachable** without a domain, **Down** when it does not answer (even with a domain),
+  **Stopped** when stopped in pm2, and **Unstable** while pm2 counts unstable restarts.
+- Workspace › Projects is highlighted on the projects list and the creation page only: a project's
+  page highlights its own entry in the Projects section.
+- The dashboard keeps five cards, in this order: Online, Health, CPU, Memory, Storage. The
+  Certificates, Databases and Pipelines cards are gone.
+
+### Fixed
+
+- The dashboard's Online card counts static sites too (served when active and exposed on a
+  domain), not only the running applications.
+
 ## [0.2.2] - 2026-11-12
 
 ### Added
@@ -88,7 +137,8 @@ First version: everything SolarOps does when the history starts.
   `npm run rollback`, and database migrations applied after a backup.
 - Docker test bench, ESLint and Prettier, documentation in `docs/`.
 
-[Unreleased]: https://github.com/myeti/solar-ops/compare/0.2.2...develop
+[0.3.1]: https://github.com/myeti/solar-ops/compare/0.3.0...0.3.1
+[0.3.0]: https://github.com/myeti/solar-ops/compare/0.2.2...0.3.0
 [0.2.2]: https://github.com/myeti/solar-ops/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/myeti/solar-ops/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/myeti/solar-ops/releases/tag/0.2.0

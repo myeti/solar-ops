@@ -19,6 +19,8 @@
         <DnsCheckPanel :project="project" />
       </div>
 
+      <AccessPanel v-if="!project.system" :project="project" @saved="onSaved" @refresh="$emit('refresh')" />
+
       <DnsRecordsPanel :project="project" @refresh="$emit('refresh')" />
 
       <NginxPreviewPanel :project="project" :version="previewVersion" @reapply="reapply" />
@@ -28,8 +30,10 @@
 
 <script>
 /**
- * Network tab: domain, nginx routing, certificates, DNS check and records.
+ * Network tab: domain, nginx routing, certificates, DNS check, access
+ * protection and DNS records.
  */
+import AccessPanel from '../../../components/projects/network/AccessPanel.vue';
 import CertificatePanel from '../../../components/projects/network/CertificatePanel.vue';
 import DnsCheckPanel from '../../../components/projects/network/DnsCheckPanel.vue';
 import DnsRecordsPanel from '../../../components/projects/network/DnsRecordsPanel.vue';
@@ -38,7 +42,7 @@ import NginxPreviewPanel from '../../../components/projects/network/NginxPreview
 
 export default {
   name: 'NetworkTab',
-  components: { CertificatePanel, DnsCheckPanel, DnsRecordsPanel, NetworkForm, NginxPreviewPanel },
+  components: { AccessPanel, CertificatePanel, DnsCheckPanel, DnsRecordsPanel, NetworkForm, NginxPreviewPanel },
   props: {
     project: {
       type: Object,

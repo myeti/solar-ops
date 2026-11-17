@@ -11,6 +11,7 @@ import { apiNotFound, errorHandler } from './middleware/errors.js';
 import { apiLimiter, csrfProtection, securityHeaders } from './middleware/security.js';
 import adminsRouter from './routes/admins.js';
 import alertsRouter from './routes/alerts.js';
+import analyticsRouter from './routes/analytics.js';
 import authRouter from './routes/auth.js';
 import dnsAccountsRouter, { listCertificates } from './routes/dnsAccounts.js';
 import gitCredentialsRouter from './routes/gitCredentials.js';
@@ -99,6 +100,7 @@ export function createApp() {
   api.use('/projects', projectsRouter);
   api.use('/system', systemRouter);
   api.use('/alerts', alertsRouter);
+  api.use('/analytics', analyticsRouter);
   app.use('/api', api);
   app.use('/api', apiNotFound);
 
