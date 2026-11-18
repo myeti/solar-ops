@@ -34,6 +34,7 @@
 const TYPE_ICONS = {
   deploy: 'upload-cloud',
   pull: 'download-cloud',
+  script: 'terminal',
   certificate: 'shield',
   'db-dump': 'archive',
   'db-backup': 'calendar',

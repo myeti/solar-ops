@@ -41,6 +41,7 @@ const AUDIT_ACTIONS = {
   'project.stop': { label: 'Stopped', icon: 'square', tone: 'amber' },
   'project.deploy': { label: 'Deployed', icon: 'upload-cloud', tone: 'cyan' },
   'project.pull': { label: 'Pulled sources of', icon: 'download-cloud' },
+  'project.script-run': { label: 'Ran a script of', icon: 'terminal' },
   'project.logs-clear': { label: 'Cleared the logs of', icon: 'file-text' },
   'project.environment-update': { label: 'Updated the environment of', icon: 'list' },
   'project.smtp-update': { label: 'Updated the mail relay of', icon: 'send' },

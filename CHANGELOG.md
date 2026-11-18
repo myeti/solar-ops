@@ -14,11 +14,15 @@ date, and the version in `package.json` follows.
 - **Project versions**: the `version` of a project's `package.json` (SolarOps's own for SolarOps)
   shows under its planet on the dashboard, beside its type in the projects list, and in its page
   header.
+- **Run a script** (Deployment tab): pick a script of the project's `package.json`, add arguments,
+  and run it (`npm run create:admin -- test@email.com`) from `repo/` with all the project's
+  variables. The output shows live and stays in the History; arguments can be hidden (passwords).
 
 ### Changed
 
 - A project's page header reads status · version · public URL: the identifier and the port are
   gone from it (they stay in its Settings tab).
+- The Deployment tab's history is now **History**: deployments and script runs.
 
 ## [0.3.1] - 2026-11-17
 
