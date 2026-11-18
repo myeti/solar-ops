@@ -86,6 +86,16 @@ Each time it loads, the list checks that every project is live: an application a
 Nothing local is lost: changes to tracked files go to a `git stash`, unpushed commits to a
 `solarops/backup-<date>` branch, and the checkout refuses to overwrite untracked files.
 
+**Run a script** (same tab) runs a script of `package.json` with arguments, e.g. `create:admin`
+with `test@email.com` runs `npm run create:admin -- test@email.com`:
+
+- it runs from `repo/` with every variable of the project (its Environment tab), like the builds,
+  with the repository's package manager (`pnpm`, `yarn` and `bun` pass the arguments without `--`);
+- the arguments are split like a command line (quote one holding spaces) and passed as they are,
+  never interpreted by a shell; only scripts listed in `package.json` can run;
+- the output shows live, and the run stays in the History of the tab and in the activity journal;
+  secret variables are masked in it, and *Hide the arguments* masks them too (passwords, tokens).
+
 ## Webhooks
 
 The **Deployment** tab gives the URL (`https://<solarops>/hooks/<uid>`), the secret and a setup
