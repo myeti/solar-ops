@@ -7,6 +7,15 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
+## [Unreleased]
+
+### Added
+
+- **`DATA_DIR`**: every project gets a `data/` folder for the files it writes at runtime (uploads,
+  caches, SQLite...), next to `repo/` and kept across deployments, and its path as `DATA_DIR`.
+  Existing projects get theirs when SolarOps starts. It shows in the overview (On the server) and
+  in the Storage measure.
+
 ## [0.3.2] - 2026-11-22
 
 ### Added
@@ -157,6 +166,7 @@ First version: everything SolarOps does when the history starts.
   `npm run rollback`, and database migrations applied after a backup.
 - Docker test bench, ESLint and Prettier, documentation in `docs/`.
 
+[Unreleased]: https://github.com/myeti/solar-ops/compare/0.3.2...develop
 [0.3.2]: https://github.com/myeti/solar-ops/compare/0.3.1...0.3.2
 [0.3.1]: https://github.com/myeti/solar-ops/compare/0.3.0...0.3.1
 [0.3.0]: https://github.com/myeti/solar-ops/compare/0.2.2...0.3.0

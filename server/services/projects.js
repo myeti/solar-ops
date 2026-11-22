@@ -9,7 +9,7 @@ import config from '../config.js';
 import { Project, Task } from '../models/index.js';
 import { generatePassword } from '../lib/crypto.js';
 import { conflict, badRequest } from '../lib/errors.js';
-import { isPathInside, pathExists } from '../lib/files.js';
+import { ensureDirectory, isPathInside, pathExists } from '../lib/files.js';
 import logger from '../lib/logger.js';
 import { RESERVED_UIDS, uidToSqlIdentifier } from '../lib/slug.js';
 import { readProjectCertificate } from './certificates.js';
@@ -226,6 +226,36 @@ async function noteLateAnswer(project, task, processStatus) {
   task.meta = { ...meta, answeredAt: new Date().toISOString() };
   task.changed('meta', true);
   await task.save({ fields: ['meta'] });
+}
+
+/**
+ * At startup: give a data/ folder (DATA_DIR) to the projects created before
+ * it existed. Only inside an existing project folder; a folder SolarOps
+ * cannot write in is reported, not changed.
+ */
+export async function addMissingDataFolders() {
+  const projects = await Project.findAll({ where: { system: false } });
+  let added = 0;
+
+  for (const project of projects) {
+    const paths = await resolveProjectPaths(project);
+
+    if (!(await pathExists(paths.root))) {
+      continue;
+    }
+
+    try {
+      if (await ensureDirectory(paths.data, 0o750)) {
+        added += 1;
+      }
+    } catch (error) {
+      logger.warn(`Could not create the data/ folder of ${project.uid}`, { error: error.message });
+    }
+  }
+
+  if (added > 0) {
+    logger.info(`data/ folder (DATA_DIR) created for ${added} project(s)`);
+  }
 }
 
 /** A version as package.json holds it (1.2.3, 2.0.0-beta.1...): anything else is not shown. */

@@ -152,7 +152,7 @@ Variables given to a project at startup (later sources win):
 
 | Source | Variables |
 | --- | --- |
-| system | `NODE_ENV=production`, `SOLAROPS_PROJECT`, `ROOT_DIR` (the project's `repo/` folder, where it runs and builds), `PORT` (applications: the project port), `JWT_SECRET` (32 random characters generated once per project, stored encrypted, masked like every secret) |
+| system | `NODE_ENV=production`, `SOLAROPS_PROJECT`, `ROOT_DIR` (the project's `repo/` folder, where it runs and builds), `DATA_DIR` (its `data/` folder, for the files it writes at runtime: uploads, caches, SQLite...; kept across deployments), `PORT` (applications: the project port), `JWT_SECRET` (32 random characters generated once per project, stored encrypted, masked like every secret) |
 | network | `PUBLIC_URL`, when the project has a domain: `https://<domain>` once a certificate method is chosen, `http://<domain>` otherwise; `ANALYTICS_URL`, the tracker script, when [analytics](#analytics) are on |
 | database | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DATABASE_URL` |
 | mail | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` |
