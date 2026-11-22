@@ -7,6 +7,26 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
+## [0.3.2] - 2026-11-22
+
+### Added
+
+- **Favicons in the projects list**: a live website shows its favicon instead of its planet,
+  found on the server itself (the app on its port, or the static site's files), never on the
+  internet. Without one, the planet stays.
+- **Project versions**: the `version` of a project's `package.json` (SolarOps's own for SolarOps)
+  shows under its planet on the dashboard, beside its type in the projects list, and in its page
+  header.
+- **Run a script** (Deployment tab): pick a script of the project's `package.json`, add arguments,
+  and run it (`npm run create:admin -- test@email.com`) from `repo/` with all the project's
+  variables. The output shows live and stays in the History; arguments can be hidden (passwords).
+
+### Changed
+
+- A project's page header reads status · version · public URL: the identifier and the port are
+  gone from it (they stay in its Settings tab).
+- The Deployment tab's history is now **History**: deployments and script runs.
+
 ## [0.3.1] - 2026-11-17
 
 ### Added
@@ -137,6 +157,7 @@ First version: everything SolarOps does when the history starts.
   `npm run rollback`, and database migrations applied after a backup.
 - Docker test bench, ESLint and Prettier, documentation in `docs/`.
 
+[0.3.2]: https://github.com/myeti/solar-ops/compare/0.3.1...0.3.2
 [0.3.1]: https://github.com/myeti/solar-ops/compare/0.3.0...0.3.1
 [0.3.0]: https://github.com/myeti/solar-ops/compare/0.2.2...0.3.0
 [0.2.2]: https://github.com/myeti/solar-ops/compare/0.2.1...0.2.2

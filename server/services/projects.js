@@ -228,6 +228,35 @@ async function noteLateAnswer(project, task, processStatus) {
   await task.save({ fields: ['meta'] });
 }
 
+/** A version as package.json holds it (1.2.3, 2.0.0-beta.1...): anything else is not shown. */
+const PACKAGE_VERSION_PATTERN = /^v?\d+(?:\.\d+){0,3}(?:[-+][0-9A-Za-z.-]+)?$/;
+const MAX_PACKAGE_VERSION_LENGTH = 40;
+
+/**
+ * The `version` of a folder's package.json, or null (no file, no version,
+ * not JSON, or not a version).
+ *
+ * @param {string} folder
+ */
+async function packageVersionOf(folder) {
+  try {
+    const manifest = JSON.parse(await fs.readFile(path.join(folder, 'package.json'), 'utf8'));
+    const version = manifest && manifest.version;
+
+    if (
+      typeof version === 'string' &&
+      version.length <= MAX_PACKAGE_VERSION_LENGTH &&
+      PACKAGE_VERSION_PATTERN.test(version)
+    ) {
+      return version;
+    }
+  } catch {
+    // No package.json, or not readable: no version.
+  }
+
+  return null;
+}
+
 /**
  * Full representation of a project for the API, including runtime state.
  *
@@ -282,9 +311,17 @@ export async function presentProject(project, options = {}) {
     lastDeploymentPublic = lastDeployment.toPublic();
   }
 
+  // SolarOps itself: its own package.json, not its repo folder.
+  let versionFolder = paths.repo;
+
+  if (project.system) {
+    versionFolder = config.rootDir;
+  }
+
   return {
     ...project.toPublic(),
     path: paths.root,
+    version: await packageVersionOf(versionFolder),
     process: processStatus,
     processError,
     certificate,

@@ -11,6 +11,7 @@ import { normalizeCommandLines, queueDeployment } from '../services/deploy.js';
 import { GIT_BRANCH_PATTERN, GIT_URL_PATTERN, readHeadCommit, testRepositoryAccess } from '../services/git.js';
 import { getProjectProcess } from '../services/pm2.js';
 import { resolveProjectPaths } from '../services/projectPaths.js';
+import { listProjectScripts, parseScriptArguments, queueScriptRun } from '../services/scripts.js';
 import { presentProject } from '../services/projects.js';
 import { actorOf, publicBaseUrl } from './helpers.js';
 
@@ -139,6 +140,50 @@ router.get('/commit', async (req, res) => {
   const paths = await resolveProjectPaths(req.project);
 
   res.json({ commit: await readHeadCommit(paths.repo) });
+});
+
+/**
+ * The scripts of the project's package.json, and how they run.
+ */
+router.get('/scripts', async (req, res) => {
+  res.json(await listProjectScripts(req.project));
+});
+
+/**
+ * Run a script of package.json with arguments, as a task.
+ * Body: { script, args, hideArgs }
+ */
+router.post('/scripts/run', async (req, res) => {
+  const input = new Validator(req.body);
+  const script = input.string('script', { required: true, max: 200 });
+  const argsText = input.string('args', { max: 1000, defaultValue: '', trim: false });
+  const hideArgs = input.boolean('hideArgs', { defaultValue: false });
+  input.assertValid();
+
+  let args;
+
+  try {
+    args = parseScriptArguments(argsText);
+  } catch (error) {
+    throw badRequest(error.message, { fields: { args: error.message } });
+  }
+
+  let queued;
+
+  try {
+    queued = await queueScriptRun(req.project, { script, args, hideArgs, triggeredBy: actorOf(req) });
+  } catch (error) {
+    throw badRequest(error.message);
+  }
+
+  await recordAudit({
+    req,
+    action: 'project.script-run',
+    target: req.project.uid,
+    details: { taskId: queued.task.id, script, args: queued.shownArgs },
+  });
+
+  res.status(202).json({ task: queued.task.toPublic() });
 });
 
 /**

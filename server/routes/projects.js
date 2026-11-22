@@ -6,13 +6,14 @@
 import express from 'express';
 import { Project, SmtpAccount, Task } from '../models/index.js';
 import { DEFAULT_START_COMMAND, PROJECT_TYPES } from '../models/Project.js';
-import { badRequest } from '../lib/errors.js';
+import { badRequest, notFound } from '../lib/errors.js';
 import { splitCommandLine } from '../lib/exec.js';
 import { UID_MAX_LENGTH, UID_PATTERN, slugify } from '../lib/slug.js';
 import { FOLDER_NAME_PATTERN, Validator } from '../lib/validation.js';
 import { recordAudit } from '../services/audit.js';
 import { listProjectVariables, renderRedactedDotenv } from '../services/environment.js';
 import { getGeneralSettings } from '../services/settings.js';
+import { projectFavicon } from '../services/favicon.js';
 import { isLive } from '../services/health.js';
 import { measureProjectStorage } from '../services/storage.js';
 import { guardSystemProject } from '../services/systemProject.js';
@@ -23,7 +24,7 @@ import {
   probeLiveness,
   startupSecondsOf,
 } from '../services/health.js';
-import { clearProjectLogs, getProcessMap, readProjectLogs } from '../services/pm2.js';
+import { clearProjectLogs, getProcessMap, getProjectProcess, readProjectLogs } from '../services/pm2.js';
 import { MAX_PORT, MIN_PORT, nextFreePort } from '../services/ports.js';
 import {
   changeProjectPort,
@@ -297,6 +298,27 @@ router.post('/:uid/stop', async (req, res) => {
   await recordAudit({ req, action: 'project.stop', target: req.project.uid });
 
   res.json({ project: await presentProject(req.project) });
+});
+
+/**
+ * The favicon of the project's website (services/favicon.js), for the
+ * projects list; 404 when it has none. An SVG never runs anything here.
+ */
+router.get('/:uid/favicon', async (req, res) => {
+  const processStatus = await getProjectProcess(req.project).catch(() => null);
+  const icon = await projectFavicon(req.project, processStatus);
+
+  if (icon === null) {
+    throw notFound('No favicon.');
+  }
+
+  res.set({
+    'Content-Type': icon.type,
+    'Cache-Control': 'private, max-age=600',
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+  });
+  res.send(icon.body);
 });
 
 /**

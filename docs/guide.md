@@ -30,8 +30,12 @@
 
 The **Projects** page lists every project in a table, sorted by name, sortable by any column:
 status, services (git, database, mail, network), public URL (opens the site in a new tab), CPU,
-memory and uptime, and, with [analytics](#analytics), the visits. Click a row to open the project;
-*Refresh* reloads the numbers (nothing reloads by itself).
+memory and uptime, and, with [analytics](#analytics), the visits. A project's version (the
+`version` of its `package.json`) shows beside its type, under its planet on the dashboard and in
+its page header. A live website shows its **favicon** instead of its planet: SolarOps finds it on
+the server itself (the app's page on its port, or the static site's files: `<link rel="icon">`,
+else `/favicon.ico`), never on the internet. Click a row to open the project; *Refresh* reloads
+the numbers and the favicons (nothing reloads by itself).
 
 Each time it loads, the list checks that every project is live: an application answers on its port
 (one request, 1.5 seconds at most), a static site has its build (`index.html` in its public folder).
@@ -83,6 +87,16 @@ Each time it loads, the list checks that every project is live: an application a
 
 Nothing local is lost: changes to tracked files go to a `git stash`, unpushed commits to a
 `solarops/backup-<date>` branch, and the checkout refuses to overwrite untracked files.
+
+**Run a script** (same tab) runs a script of `package.json` with arguments, e.g. `create:admin`
+with `test@email.com` runs `npm run create:admin -- test@email.com`:
+
+- it runs from `repo/` with every variable of the project (its Environment tab), like the builds,
+  with the repository's package manager (`pnpm`, `yarn` and `bun` pass the arguments without `--`);
+- the arguments are split like a command line (quote one holding spaces) and passed as they are,
+  never interpreted by a shell; only scripts listed in `package.json` can run;
+- the output shows live, and the run stays in the History of the tab and in the activity journal;
+  secret variables are masked in it, and *Hide the arguments* masks them too (passwords, tokens).
 
 ## Webhooks
 
