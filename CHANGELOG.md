@@ -11,6 +11,10 @@ date, and the version in `package.json` follows.
 
 ### Added
 
+- **Favicons in the projects list**: a live website shows its favicon instead of its planet,
+  found on the server itself (the app on its port, or the static site's files), never on the
+  internet. Without one, the planet stays.
+
 - **Project versions**: the `version` of a project's `package.json` (SolarOps's own for SolarOps)
   shows under its planet on the dashboard, beside its type in the projects list, and in its page
   header.

@@ -75,7 +75,11 @@
                 <td>
                   <div class="projects-name">
                     <span class="projects-avatar">
+                      <span v-if="row.faviconUrl" class="projects-favicon" :class="{ 'is-dim': !row.project.active }">
+                        <img :src="row.faviconUrl" alt="" @error="iconFailed(row.project.uid)" />
+                      </span>
                       <PlanetAvatar
+                        v-else
                         :seed="row.project.uid"
                         :size="32"
                         :ring="row.project.network.enabled"
@@ -259,6 +263,10 @@ export default {
       loading: true,
       search: '',
       sort: { key: 'name', direction: 'asc' },
+      /** Changes on Refresh, so the favicons are asked again. */
+      iconVersion: 0,
+      /** Projects whose favicon could not be loaded: their planet instead. */
+      missingIcons: {},
     };
   },
   computed: {
@@ -378,6 +386,7 @@ export default {
         status,
         pills: this.pillsOf(project, status),
         typeLabel: this.typeLabelOf(project),
+        faviconUrl: this.faviconUrlOf(project, status),
         version: project.version,
         services: this.servicesOf(project),
         domain,
@@ -395,6 +404,20 @@ export default {
      * app stopped in pm2; inactive: a deactivated project. `live` is the
      * server's probe (GET /api/projects?probe=1).
      */
+    /**
+     * The website's favicon (GET /api/projects/:uid/favicon), when the site
+     * can have one right now: live, and not SolarOps itself.
+     */
+    faviconUrlOf(project, status) {
+      if (project.system || this.missingIcons[project.uid] || !['online', 'live'].includes(status)) {
+        return null;
+      }
+
+      return `/api/projects/${project.uid}/favicon?v=${this.iconVersion}`;
+    },
+    iconFailed(uid) {
+      this.missingIcons = { ...this.missingIcons, [uid]: true };
+    },
     statusOf(project) {
       if (!project.active) {
         return 'inactive';
@@ -522,6 +545,8 @@ export default {
     },
     async load() {
       this.loading = true;
+      this.iconVersion += 1;
+      this.missingIcons = {};
       this.loadAnalytics();
 
       try {
@@ -621,6 +646,26 @@ export default {
 }
 
 /* A slot as wide as a ringed planet: names line up. The planet's layers are positioned: let clicks reach the row. */
+.projects-favicon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+}
+
+.projects-favicon img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.projects-favicon.is-dim {
+  opacity: 0.5;
+}
+
 .projects-avatar {
   display: grid;
   flex-shrink: 0;

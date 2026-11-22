@@ -32,8 +32,10 @@ The **Projects** page lists every project in a table, sorted by name, sortable b
 status, services (git, database, mail, network), public URL (opens the site in a new tab), CPU,
 memory and uptime, and, with [analytics](#analytics), the visits. A project's version (the
 `version` of its `package.json`) shows beside its type, under its planet on the dashboard and in
-its page header. Click a row to open the project;
-*Refresh* reloads the numbers (nothing reloads by itself).
+its page header. A live website shows its **favicon** instead of its planet: SolarOps finds it on
+the server itself (the app's page on its port, or the static site's files: `<link rel="icon">`,
+else `/favicon.ico`), never on the internet. Click a row to open the project; *Refresh* reloads
+the numbers and the favicons (nothing reloads by itself).
 
 Each time it loads, the list checks that every project is live: an application answers on its port
 (one request, 1.5 seconds at most), a static site has its build (`index.html` in its public folder).
