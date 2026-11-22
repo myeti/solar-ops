@@ -12,8 +12,8 @@
     </header>
     <div class="panel-body stack">
       <p v-if="!storage && !loading && !error" class="text-dim small">
-        Disk space taken by the project folder (sources, dependencies, dumps, logs, certificates) and its database.
-        Computed on demand: large folders take a few seconds.
+        Disk space taken by the project folder (sources, dependencies, runtime files, dumps, logs, certificates) and its
+        database. Computed on demand: large folders take a few seconds.
       </p>
       <OrbitLoader v-if="loading && !storage" inline label="Measuring…" />
       <div v-if="error" class="callout callout-danger">

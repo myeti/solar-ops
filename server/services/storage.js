@@ -24,6 +24,7 @@ const DU_TIMEOUT_MS = 120 * 1000;
 const ENTRY_KINDS = {
   repo: 'Sources and build',
   db: 'Database dumps',
+  data: 'Runtime files (DATA_DIR)',
   logs: 'Process logs',
   etc: 'nginx, pm2 and certificates',
 };

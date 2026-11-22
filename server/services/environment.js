@@ -3,6 +3,7 @@
  * builds. Sources, applied in this order (later wins):
  *
  *   1. system    NODE_ENV, SOLAROPS_PROJECT, ROOT_DIR (the repo/ folder),
+ *                DATA_DIR (the data/ folder, for runtime files),
  *                PORT (the project port), JWT_SECRET (generated once,
  *                services/projectSecrets.js)
  *   2. network   PUBLIC_URL (https://<domain>, http:// without certificate),
@@ -50,7 +51,12 @@ export async function listProjectVariables(project) {
 
   add('NODE_ENV', 'production', 'system', false);
   add('SOLAROPS_PROJECT', project.uid, 'system', false);
-  add('ROOT_DIR', (await resolveProjectPaths(project)).repo, 'system', false);
+  const paths = await resolveProjectPaths(project);
+  add('ROOT_DIR', paths.repo, 'system', false);
+
+  if (!project.system) {
+    add('DATA_DIR', paths.data, 'system', false);
+  }
 
   if (project.port) {
     add('PORT', project.port, 'system', false);
