@@ -12,6 +12,8 @@
  *       letsencrypt/           certbot configuration and certificates
  *       dns-credentials.ini    DNS provider credentials (mode 0600, DNS-01 only)
  *     db/                      database dumps (mode 0700)
+ *     data/                    runtime files of the project, given as DATA_DIR
+ *                              (uploads, caches, SQLite...: mode 0750)
  *     logs/                    application stdout / stderr (pm2)
  *
  * A folder may already exist (project created before SolarOps): nothing
@@ -47,6 +49,7 @@ export function getProjectPaths(project, baseFolder) {
     repo: path.join(root, 'repo'),
     etc,
     db: path.join(root, 'db'),
+    data: path.join(root, 'data'),
     logs,
     acme: path.join(etc, 'acme'),
     letsencrypt: path.join(etc, 'letsencrypt'),
@@ -75,7 +78,8 @@ export async function resolveProjectPaths(project) {
  * and their permissions are left untouched.
  *
  * Folders served by nginx (repo, etc, acme) must be traversable by the nginx
- * worker user, hence 0755. Dumps contain data: 0700.
+ * worker user, hence 0755. Dumps contain data: 0700. data/ belongs to the
+ * project's processes (they run as the SolarOps user): 0750.
  *
  * @param {ReturnType<typeof getProjectPaths>} paths
  * @returns {Promise<string[]>} the folders that were created
@@ -87,6 +91,7 @@ export async function scaffoldProjectFolders(paths) {
     [paths.etc, 0o755],
     [paths.acme, 0o755],
     [paths.db, 0o700],
+    [paths.data, 0o750],
     [paths.logs, 0o750],
   ];
   const created = [];
@@ -118,7 +123,7 @@ export async function describeExistingFolder(paths) {
   result.itemCount = entries.length;
   result.sample = entries.sort().slice(0, 12);
   result.warnings.push(
-    `${paths.root} already exists (${entries.length} item(s)). Nothing in it will be erased or replaced: SolarOps only adds the missing repo/, etc/, db/ and logs/ folders.`,
+    `${paths.root} already exists (${entries.length} item(s)). Nothing in it will be erased or replaced: SolarOps only adds the missing repo/, etc/, db/, data/ and logs/ folders.`,
   );
 
   const writable = await fs.access(paths.root, fsConstants.W_OK).then(

@@ -38,6 +38,12 @@
           <code>{{ project.path }}</code>
           <CopyButton :value="project.path" />
         </dd>
+        <dt>Data</dt>
+        <dd class="row-sm">
+          <code>{{ project.path }}/data</code>
+          <CopyButton :value="`${project.path}/data`" />
+          <span class="tiny text-faint">DATA_DIR, for runtime files</span>
+        </dd>
         <template v-if="project.type === 'app'">
           <dt>Port</dt>
           <dd>

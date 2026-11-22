@@ -9,7 +9,7 @@
 import fs from 'node:fs/promises';
 import config from '../config.js';
 import { runConfiguredCommand, splitCommandLine } from '../lib/exec.js';
-import { tailFile, writeManagedFile } from '../lib/files.js';
+import { ensureDirectory, tailFile, writeManagedFile } from '../lib/files.js';
 import { badRequest, conflict } from '../lib/errors.js';
 import { buildProjectEnv } from './environment.js';
 import { PM2_MARKER, resolveProjectPaths } from './projectPaths.js';
@@ -133,6 +133,9 @@ export async function getProjectProcess(project) {
 export async function writePm2Config(project) {
   const paths = await resolveProjectPaths(project);
   const env = await buildProjectEnv(project);
+
+  // DATA_DIR must exist when the app starts (deleted by hand, or older project).
+  await ensureDirectory(paths.data, 0o750);
   const [script, ...args] = splitCommandLine(project.startCommand);
 
   const declaration = {

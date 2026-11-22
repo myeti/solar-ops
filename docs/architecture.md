@@ -42,6 +42,7 @@ hand when SolarOps itself is unavailable:
 │   ├── letsencrypt/       certbot configuration and certificates of this project
 │   └── dns-credentials.ini  DNS provider credentials, mode 0600 (DNS-01 only)
 ├── db/                    database dumps, mode 0700
+├── data/                  runtime files of the project (uploads, caches, SQLite...), given as DATA_DIR, mode 0750
 └── logs/                  stdout / stderr
 ```
 
