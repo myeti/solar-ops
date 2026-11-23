@@ -653,12 +653,11 @@ export default {
   height: 34px;
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border);
 }
 
 .projects-favicon img {
-  width: 22px;
-  height: 22px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 
