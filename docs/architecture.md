@@ -38,10 +38,12 @@ hand when SolarOps itself is unavailable:
 ├── etc/
 │   ├── nginx.conf         generated server blocks (loaded by nginx through one include)
 │   ├── pm2.json           generated pm2 declaration, mode 0600 (emergency: pm2 start etc/pm2.json)
+│   ├── redis.conf         generated Redis configuration, mode 0600 (with pm2-redis.json, its pm2 declaration)
 │   ├── acme/              webroot for Let's Encrypt HTTP-01 challenges
 │   ├── letsencrypt/       certbot configuration and certificates of this project
 │   └── dns-credentials.ini  DNS provider credentials, mode 0600 (DNS-01 only)
 ├── db/                    database dumps, mode 0700
+├── redis/                 data of the project's Redis instance (Redis tab), mode 0700
 ├── data/                  runtime files of the project (uploads, caches, SQLite...), given as DATA_DIR, mode 0750
 └── logs/                  stdout / stderr
 ```

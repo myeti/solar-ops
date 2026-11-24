@@ -195,6 +195,7 @@ export default {
         { name: 'overview', label: 'Overview', icon: 'compass', enabled: false },
         { name: 'deployment', label: 'Deployment', icon: 'git-branch', enabled: project.deployment.enabled },
         { name: 'database', label: 'Database', icon: 'database', enabled: project.database.enabled },
+        { name: 'redis', label: 'Redis', icon: 'zap', enabled: project.redis.enabled },
         { name: 'mail', label: 'Mail', icon: 'send', enabled: project.smtp.enabled },
         { name: 'network', label: 'Network', icon: 'globe', enabled: project.network.enabled },
         { name: 'environment', label: 'Environment', icon: 'list', enabled: false },

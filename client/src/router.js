@@ -58,6 +58,7 @@ const routes = [
         component: () => import('./views/projects/tabs/DeploymentTab.vue'),
       },
       { path: 'database', name: 'project-database', component: () => import('./views/projects/tabs/DatabaseTab.vue') },
+      { path: 'redis', name: 'project-redis', component: () => import('./views/projects/tabs/RedisTab.vue') },
       { path: 'mail', name: 'project-mail', component: () => import('./views/projects/tabs/MailTab.vue') },
       { path: 'network', name: 'project-network', component: () => import('./views/projects/tabs/NetworkTab.vue') },
       {
@@ -68,6 +69,12 @@ const routes = [
       { path: 'logs', name: 'project-logs', component: () => import('./views/projects/tabs/LogsTab.vue') },
       { path: 'settings', name: 'project-settings', component: () => import('./views/projects/tabs/SettingsTab.vue') },
     ],
+  },
+  {
+    path: '/infrastructure/redis',
+    name: 'redis',
+    component: () => import('./views/infrastructure/RedisView.vue'),
+    meta: { title: 'Redis' },
   },
   {
     path: '/infrastructure/database',

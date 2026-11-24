@@ -229,10 +229,13 @@ async function projectsByPid(processes) {
       continue;
     }
 
-    const pm2Process = pm2Processes.get(project.uid);
+    // The application, and its Redis instance (services/redis.js).
+    for (const name of [project.uid, `${project.uid}__redis`]) {
+      const pm2Process = pm2Processes.get(name);
 
-    if (pm2Process && pm2Process.pid) {
-      owners.set(pm2Process.pid, { uid: project.uid, name: project.name });
+      if (pm2Process && pm2Process.pid) {
+        owners.set(pm2Process.pid, { uid: project.uid, name: project.name });
+      }
     }
   }
 

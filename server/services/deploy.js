@@ -2,12 +2,14 @@
  * Deployment pipeline of a project:
  *
  *   1. pull      clone or fetch + reset the configured branch
- *   2. install   dependencies; when not configured, with the package manager
+ *   2. packages  OS packages the project needs, installed with apt when
+ *                missing (services/osPackages.js)
+ *   3. install   dependencies; when not configured, with the package manager
  *                of the repository (npm, pnpm, yarn or bun, see
  *                services/packageManagers.js)
- *   3. build     build script (default `npm run build`, run with that same
+ *   4. build     build script (default `npm run build`, run with that same
  *                package manager, skipped when there is no "build" script)
- *   4. restart   restart the pm2 process if the project is active, then
+ *   5. restart   restart the pm2 process if the project is active, then
  *                wait until it answers on / (liveness probe)
  *
  * Install and build commands are typed one per line: each line runs in its
@@ -17,7 +19,7 @@ import path from 'node:path';
 import config from '../config.js';
 import { GitCredential, Project } from '../models/index.js';
 import { DEFAULT_BUILD_COMMAND } from '../models/Project.js';
-import { readFileOrNull } from '../lib/files.js';
+import { pathExists, readFileOrNull } from '../lib/files.js';
 import { baseProcessEnv, buildProjectEnv, listProjectSecrets } from './environment.js';
 import { syncRepository } from './git.js';
 import { describeLiveness, probeLiveness, startupSecondsOf } from './health.js';
@@ -28,8 +30,10 @@ import {
   packageManagerBinary,
   runScriptCommand,
 } from './packageManagers.js';
+import { installOsPackages } from './osPackages.js';
 import { readProjectLogs, startProjectProcess } from './pm2.js';
 import { resolveProjectPaths } from './projectPaths.js';
+import { startRedisWithProject } from './redis.js';
 import { enqueueTask } from './taskRunner.js';
 
 /**
@@ -97,14 +101,19 @@ async function hasBuildScript(repoDirectory) {
 }
 
 /**
- * The deployment itself, executed inside a task.
+ * The deployment itself, executed inside a task. Modes:
+ *   - deploy   pull, OS packages, install, build, restart
+ *   - pull     pull only
+ *   - install  OS packages and install only (sources as they are)
+ *   - build    build only (sources and dependencies as they are)
+ * Only a full deploy restarts the application.
  *
  * @param {import('./taskRunner.js').TaskContext} context
  * @param {number} projectId
  * @param {object} options
- * @param {boolean} options.pullOnly only update the sources
+ * @param {'deploy'|'pull'|'install'|'build'} options.mode
  */
-async function runDeployment(context, projectId, { pullOnly }) {
+async function runDeployment(context, projectId, { mode }) {
   // Reload the project: its configuration may have changed while queued.
   const project = await Project.findByPk(projectId);
 
@@ -113,37 +122,20 @@ async function runDeployment(context, projectId, { pullOnly }) {
   }
 
   const deployment = project.deployment;
-
-  if (!deployment.url) {
-    throw new Error('No git repository is configured for this project.');
-  }
-
   const paths = await resolveProjectPaths(project);
-  let credential = null;
-
-  if (deployment.gitCredentialId) {
-    credential = await GitCredential.findByPk(deployment.gitCredentialId);
-
-    if (credential === null) {
-      throw new Error('The git credential selected for this project no longer exists.');
-    }
-  }
 
   context.addSecrets(await listProjectSecrets(project));
 
-  const commit = await syncRepository(context, {
-    directory: paths.repo,
-    url: deployment.url,
-    branch: deployment.branch,
-    credential,
-  });
-
-  if (commit !== null) {
-    context.setMeta({ commit });
-    context.info(`Now at ${commit.shortHash} — ${commit.subject} (${commit.author})`);
+  if (mode === 'deploy' || mode === 'pull') {
+    await pullSources(context, project, paths);
+  } else if (
+    !(await pathExists(path.join(paths.repo, '.git'))) &&
+    !(await pathExists(path.join(paths.repo, 'package.json')))
+  ) {
+    throw new Error('Nothing deployed yet: use Deploy now first.');
   }
 
-  if (pullOnly) {
+  if (mode === 'pull') {
     return;
   }
 
@@ -159,6 +151,61 @@ async function runDeployment(context, projectId, { pullOnly }) {
     binary = packageManagerBinary(manager.name);
   }
 
+  if (mode === 'deploy' || mode === 'install') {
+    await installOsPackages(context, deployment.osPackages);
+    await installDependencies(context, deployment, { manager, binary, commandOptions });
+  }
+
+  if (mode === 'deploy' || mode === 'build') {
+    await buildProject(context, deployment, { paths, manager, binary, commandOptions });
+  }
+
+  if (mode !== 'deploy') {
+    context.step('Restart');
+    context.info('Not restarted: only a full deployment restarts the application.');
+    return;
+  }
+
+  await publishOrRestart(context, project, deployment);
+}
+
+/**
+ * Clone or fetch the configured branch into repo/.
+ */
+async function pullSources(context, project, paths) {
+  const deployment = project.deployment;
+
+  if (!deployment.url) {
+    throw new Error('No git repository is configured for this project.');
+  }
+
+  let credential = null;
+
+  if (deployment.gitCredentialId) {
+    credential = await GitCredential.findByPk(deployment.gitCredentialId);
+
+    if (credential === null) {
+      throw new Error('The git credential selected for this project no longer exists.');
+    }
+  }
+
+  const commit = await syncRepository(context, {
+    directory: paths.repo,
+    url: deployment.url,
+    branch: deployment.branch,
+    credential,
+  });
+
+  if (commit !== null) {
+    context.setMeta({ commit });
+    context.info(`Now at ${commit.shortHash} — ${commit.subject} (${commit.author})`);
+  }
+}
+
+/**
+ * The install commands, or the package manager's install.
+ */
+async function installDependencies(context, deployment, { manager, binary, commandOptions }) {
   let installCommands = splitCommandLines(deployment.installCommand);
   context.step('Installing dependencies');
 
@@ -179,7 +226,12 @@ async function runDeployment(context, projectId, { pullOnly }) {
   } else {
     await runCommandLines(context, installCommands, commandOptions);
   }
+}
 
+/**
+ * The build commands (the default build runs with the repository's package manager).
+ */
+async function buildProject(context, deployment, { paths, manager, binary, commandOptions }) {
   const buildCommands = splitCommandLines(deployment.buildCommand);
   const isDefaultBuild = buildCommands.length === 1 && buildCommands[0] === DEFAULT_BUILD_COMMAND;
   context.step('Building');
@@ -189,12 +241,17 @@ async function runDeployment(context, projectId, { pullOnly }) {
   } else if (isDefaultBuild && !(await hasBuildScript(paths.repo))) {
     context.info('package.json has no "build" script: skipped.');
   } else if (isDefaultBuild && manager !== null && manager.name !== 'npm' && binary !== null) {
-    // The default build runs with the package manager of the repository.
     await runCommandLines(context, [runScriptCommand(binary, 'build')], commandOptions);
   } else {
     await runCommandLines(context, buildCommands, commandOptions);
   }
+}
 
+/**
+ * The end of a full deployment: a static site is live, an application is
+ * restarted and probed.
+ */
+async function publishOrRestart(context, project, deployment) {
   if (project.isStatic) {
     context.step('Publishing');
     context.info(`Static site: nginx serves repo/${project.network.publicFolder} directly, the new build is live.`);
@@ -214,6 +271,7 @@ async function runDeployment(context, projectId, { pullOnly }) {
   }
 
   context.step(`Restarting ${project.uid} with pm2`);
+  await startRedisWithProject(project);
   await startProjectProcess(project);
   context.info('Process restarted.');
 
@@ -250,33 +308,32 @@ async function logRecentErrors(context, project) {
  *
  * @param {import('../models/Project.js').default} project
  * @param {object} options
- * @param {boolean} [options.pullOnly]
+ * @param {'deploy'|'pull'|'install'|'build'} [options.mode]
  * @param {string} options.trigger manual | webhook
  * @param {string} options.triggeredBy
  */
-export async function queueDeployment(project, { pullOnly = false, trigger, triggeredBy }) {
+export async function queueDeployment(project, { mode = 'deploy', trigger, triggeredBy }) {
   if (project.system) {
     throw new Error('SolarOps is updated with npm run update (in its folder), not deployed from its own UI.');
   }
 
-  let type = 'deploy';
-  let title = `Deploy ${project.name}`;
-
-  if (pullOnly) {
-    type = 'pull';
-    title = `Pull ${project.name}`;
-  }
+  const titles = {
+    deploy: `Deploy ${project.name}`,
+    pull: `Pull ${project.name}`,
+    install: `Install ${project.name}`,
+    build: `Build ${project.name}`,
+  };
 
   const { task } = await enqueueTask(
     {
       projectId: project.id,
-      type,
-      title,
+      type: mode,
+      title: titles[mode],
       trigger,
       triggeredBy,
       meta: { branch: project.deployment.branch },
     },
-    (context) => runDeployment(context, project.id, { pullOnly }),
+    (context) => runDeployment(context, project.id, { mode }),
   );
 
   return task;

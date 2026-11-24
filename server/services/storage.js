@@ -25,6 +25,7 @@ const ENTRY_KINDS = {
   repo: 'Sources and build',
   db: 'Database dumps',
   data: 'Runtime files (DATA_DIR)',
+  redis: 'Redis data',
   logs: 'Process logs',
   etc: 'nginx, pm2 and certificates',
 };

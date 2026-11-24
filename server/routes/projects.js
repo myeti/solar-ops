@@ -11,7 +11,12 @@ import { splitCommandLine } from '../lib/exec.js';
 import { UID_MAX_LENGTH, UID_PATTERN, slugify } from '../lib/slug.js';
 import { FOLDER_NAME_PATTERN, Validator } from '../lib/validation.js';
 import { recordAudit } from '../services/audit.js';
-import { listProjectVariables, renderRedactedDotenv } from '../services/environment.js';
+import {
+  listProjectVariables,
+  listProvidedVariables,
+  providedPrefix,
+  renderRedactedDotenv,
+} from '../services/environment.js';
 import { getGeneralSettings } from '../services/settings.js';
 import { projectFavicon } from '../services/favicon.js';
 import { isLive } from '../services/health.js';
@@ -40,6 +45,7 @@ import {
 import deploymentRouter from './projectDeployment.js';
 import databaseRouter from './projectDatabase.js';
 import networkRouter from './projectNetwork.js';
+import redisRouter from './projectRedis.js';
 import { loadProject, requireUidConfirmation } from './helpers.js';
 
 const router = express.Router();
@@ -170,6 +176,7 @@ router.use('/:uid', loadProject, guardSystemProject);
 router.use('/:uid/deployment', deploymentRouter);
 router.use('/:uid/database', databaseRouter);
 router.use('/:uid/network', networkRouter);
+router.use('/:uid/redis', redisRouter);
 
 router.get('/:uid', async (req, res) => {
   res.json({ project: await presentProject(req.project) });
@@ -374,6 +381,57 @@ router.get('/:uid/environment', async (req, res) => {
   });
 
   res.json({ custom: req.project.env, variables: preview });
+});
+
+/**
+ * What a project provides to the others, as written and as they receive it
+ * (values resolved here, secrets masked).
+ */
+async function providedResponse(project) {
+  const provided = project.providedEnv;
+  const others = await Project.count({ where: { system: false } });
+  const preview = (await listProvidedVariables(project)).map((entry) => {
+    let value = entry.display;
+
+    if (entry.secret) {
+      value = '••••••••';
+    }
+
+    return { key: entry.key, name: entry.name, value, secret: entry.secret, problems: entry.problems };
+  });
+
+  return {
+    enabled: provided.enabled,
+    variables: provided.variables,
+    prefix: providedPrefix(project.uid),
+    preview,
+    receivers: Math.max(others - 1, 0),
+  };
+}
+
+router.get('/:uid/environment/provided', async (req, res) => {
+  res.json(await providedResponse(req.project));
+});
+
+/**
+ * Body: { enabled, variables: [{ key, value }] } (keys without the prefix).
+ */
+router.put('/:uid/environment/provided', async (req, res) => {
+  const input = new Validator(req.body);
+  const enabled = input.boolean('enabled', { required: true });
+  const variables = input.envList('variables');
+  input.assertValid();
+
+  req.project.providedEnv = { enabled, variables: variables || [] };
+  await req.project.save();
+  await recordAudit({
+    req,
+    action: 'project.provided-env-update',
+    target: req.project.uid,
+    details: { enabled, keys: req.project.providedEnv.variables.map((entry) => entry.key) },
+  });
+
+  res.json(await providedResponse(req.project));
 });
 
 router.put('/:uid/environment', async (req, res) => {

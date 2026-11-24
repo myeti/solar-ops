@@ -486,6 +486,7 @@ export default {
         services.push(
           { key: 'git', icon: 'git-branch', title: 'Git deployment', on: project.deployment.enabled },
           { key: 'database', icon: 'database', title: 'PostgreSQL database', on: project.database.enabled },
+          { key: 'redis', icon: 'zap', title: 'Redis', on: project.redis.enabled },
         );
       }
 

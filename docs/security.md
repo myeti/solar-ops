@@ -8,7 +8,10 @@ SolarOps controls the whole server, so it is designed as a single point of failu
 safe and recoverable:
 
 - **Least privilege** — runs as the unprivileged `solarops` user; root is only reachable through
-  two exact sudo commands (`nginx -t`, `systemctl reload nginx`). Certbot runs unprivileged with
+  two exact sudo commands (`nginx -t`, `systemctl reload nginx`) and one root-owned helper,
+  `/usr/local/lib/solarops/apt-install`, which only runs `apt-get install` on valid package names
+  (the OS packages of a project). An admin of SolarOps can therefore install any Ubuntu package
+  (their install scripts run as root): treat admin accounts accordingly. Certbot runs unprivileged with
   per-project directories. The PostgreSQL role is not superuser. Sources are owned by root.
 - **No shell injection** — commands are spawned with argument arrays, never through a shell,
   except scripts an admin explicitly typed (build / install commands). Every input is validated

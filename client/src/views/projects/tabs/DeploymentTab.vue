@@ -58,7 +58,9 @@ export default {
   methods: {
     async loadHistory() {
       try {
-        const { tasks } = await this.$api.get(`/projects/${this.project.uid}/tasks?type=deploy,pull,script&limit=15`);
+        const { tasks } = await this.$api.get(
+          `/projects/${this.project.uid}/tasks?type=deploy,pull,install,build,script&limit=15`,
+        );
         this.history = tasks;
       } catch (error) {
         this.$toast.error(error);

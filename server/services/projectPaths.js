@@ -12,6 +12,7 @@
  *       letsencrypt/           certbot configuration and certificates
  *       dns-credentials.ini    DNS provider credentials (mode 0600, DNS-01 only)
  *     db/                      database dumps (mode 0700)
+ *     redis/                   data of the project's Redis instance (mode 0700)
  *     data/                    runtime files of the project, given as DATA_DIR
  *                              (uploads, caches, SQLite...: mode 0750)
  *     logs/                    application stdout / stderr (pm2)
@@ -50,6 +51,10 @@ export function getProjectPaths(project, baseFolder) {
     etc,
     db: path.join(root, 'db'),
     data: path.join(root, 'data'),
+    redis: path.join(root, 'redis'),
+    redisConfig: path.join(etc, 'redis.conf'),
+    redisPm2Config: path.join(etc, 'pm2-redis.json'),
+    redisLog: path.join(logs, 'redis.log'),
     logs,
     acme: path.join(etc, 'acme'),
     letsencrypt: path.join(etc, 'letsencrypt'),

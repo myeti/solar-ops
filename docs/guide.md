@@ -5,7 +5,7 @@
 - [Getting started](#getting-started)
 - [Projects](#projects)
 - [Deployments](#deployments) · [Webhooks](#webhooks)
-- [Databases](#databases) · [Mail](#mail) · [Environment variables](#environment-variables)
+- [Databases](#databases) · [Redis](#redis) · [Mail](#mail) · [Environment variables](#environment-variables)
 - [Domains and HTTPS](#domains-and-https) · [Shared certificates](#shared-certificates-wildcards) ·
   [DNS records](#dns-records) · [Restricting access](#restricting-access)
 - [Dashboard](#dashboard) · [Analytics](#analytics) · [Monitoring](#monitoring) · [Alerts](#alerts) ·
@@ -67,6 +67,10 @@ Each time it loads, the list checks that every project is live: an application a
 
 *Deploy now* (or a webhook) pulls the branch, installs, builds and restarts the app:
 
+- **OS packages** — the Ubuntu packages the project needs (`ffmpeg pandoc`, *Source* form), checked
+  with apt when saved, then installed before the install commands when missing (as root, through
+  the setup's helper). A server set up before this feature installs them after `npm run update`;
+  meanwhile a deployment stops and gives the `sudo apt install` command.
 - **Install** — with empty install commands, the package manager is detected: the
   `packageManager` field of `package.json` first (e.g. `pnpm@9.15.4`, the exact version is used
   through corepack), then the lockfile (`pnpm-lock.yaml`, `yarn.lock`, `bun.lock`,
@@ -84,6 +88,8 @@ Each time it loads, the list checks that every project is live: an application a
   deployment stays failed in the history, but the project no longer needs attention. A manual
   start or restart waits 15 seconds at most, then reports a slower app as still starting.
 - **Pull only** updates the sources of a stopped app only (stop it first, or use *Deploy now*).
+- **Install only** (OS packages and dependencies) and **Build only** run that step alone, on the
+  sources as they are, without restarting.
 
 Nothing local is lost: changes to tracked files go to a `git stash`, unpushed commits to a
 `solarops/backup-<date>` branch, and the checkout refuses to overwrite untracked files.
@@ -139,6 +145,30 @@ are never deleted.
 
 An app that already has a database? See [existing databases](#existing-projects-and-databases).
 
+## Redis
+
+The **Redis** tab of a project turns on a Redis instance for it alone:
+
+- its own process, run by pm2 as `<uid>__redis` (`ghost__redis`), started and stopped with the
+  project (deactivated: stopped; deleted: removed); an application restart leaves it running;
+- listening on `127.0.0.1` only, on its own port (6400, 6401..., `SOLAROPS_REDIS_FIRST_PORT`), with
+  a generated password; the project receives `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` and
+  `REDIS_URL` (restart it after turning Redis on);
+- its data in `<project>/redis/` (counted in Storage), its configuration in `etc/redis.conf`
+  (generated, mode 0600), its log in `logs/redis.log`.
+
+Settings, applied live without a restart: the memory limit (64 MB by default), what happens when it
+is full (**Data**: writes are refused, nothing is lost; **Cache**: the oldest keys are evicted), and
+the persistence (snapshots, append-only file, or memory only). Switching to the append-only file
+first writes the current data into it, so it is only possible while Redis runs. Operations: restart,
+new password (restart the project to apply it), empty (`FLUSHALL`, confirmed by typing the uid).
+Turning Redis off removes its process and variables but keeps its data for the next time; *Delete
+its data* empties `redis/`.
+
+**Infrastructure › Redis** lists the projects using it. The setup installs `redis-server` (or keeps
+the Redis / Valkey already there) and disables its shared system service: projects never share an
+instance.
+
 ## Mail
 
 Mail relays are SMTP accounts shared by the projects (*Infrastructure › Mail relays*). Linking one
@@ -155,7 +185,9 @@ Variables given to a project at startup (later sources win):
 | system | `NODE_ENV=production`, `SOLAROPS_PROJECT`, `ROOT_DIR` (the project's `repo/` folder, where it runs and builds), `DATA_DIR` (its `data/` folder, for the files it writes at runtime: uploads, caches, SQLite...; kept across deployments), `PORT` (applications: the project port), `JWT_SECRET` (32 random characters generated once per project, stored encrypted, masked like every secret) |
 | network | `PUBLIC_URL`, when the project has a domain: `https://<domain>` once a certificate method is chosen, `http://<domain>` otherwise; `ANALYTICS_URL`, the tracker script, when [analytics](#analytics) are on |
 | database | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DATABASE_URL` |
+| redis | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_URL`, when the project has its [Redis](#redis) |
 | mail | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` |
+| provided | what the other projects provide, prefixed with their uid (`UMAMI_SCRIPT_URL`, below) |
 | custom | anything you define in the **Environment** tab, encrypted at rest |
 
 Custom values can reuse other variables: `${NAME}` is replaced by the value `NAME` has for the
@@ -166,6 +198,14 @@ passwords containing `$` stay as they are; `$${NAME}` writes `${NAME}` literally
 expand placeholders themselves. A reference to an unknown variable becomes empty and a loop is left
 as written: the **Environment** tab flags both. A value built from a secret (`${DB_PASSWORD}`) is
 treated as a secret.
+
+**Provided variables.** In its Environment tab, a project can provide variables to every other
+project (*Provided to other projects*). They are prefixed with its uid in upper case, `-` becoming
+`_`: `umami` providing `SCRIPT_URL=${PUBLIC_URL}/script.js` gives the others
+`UMAMI_SCRIPT_URL=https://umami.example.com/script.js`. Their values are resolved in the providing
+project, with its own variables; what a project receives from others is never passed on. Secrets
+stay secrets (masked, redacted from logs). A project's own custom variable overrides one it
+receives. Restart (or redeploy) the receiving projects to apply a change.
 
 The project overview shows the result under **On the server → Env vars**, as a `.env` file. Secrets
 are redacted by the server before they reach the page: component passwords, custom variables whose

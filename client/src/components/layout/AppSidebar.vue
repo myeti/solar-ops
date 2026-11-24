@@ -128,6 +128,7 @@ export default {
             { to: '/infrastructure/git', label: 'Git credentials', icon: 'git-branch', count: 'gitCredentials' },
             { to: '/infrastructure/domains', label: 'Domains & SSL', icon: 'shield', count: 'domains' },
             { to: '/infrastructure/database', label: 'PostgreSQL', icon: 'database', count: 'postgres' },
+            { to: '/infrastructure/redis', label: 'Redis', icon: 'zap', count: 'redis' },
             { to: '/infrastructure/mail', label: 'Mail relays', icon: 'send', count: 'mailRelays' },
           ],
         },
