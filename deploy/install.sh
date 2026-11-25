@@ -351,6 +351,47 @@ has_command() {
   command -v "$1" > /dev/null || [[ -x "/usr/sbin/$1" ]]
 }
 
+# The installed pm2 version, read from its package.json: "pm2 --version",
+# like most pm2 commands, starts a pm2 daemon for its caller (here root),
+# which would then stay up for nothing. An install laid out otherwise is
+# asked with a throwaway PM2_HOME, whose daemon is stopped right away.
+pm2_version() {
+  local pm2_bin
+  local version
+  local pm2_home
+
+  pm2_bin="$(readlink -f "$(command -v pm2)")"
+  version="$(node -e 'const p = require(process.argv[1]); if (p.name === "pm2") { console.log(p.version); }' \
+    "$(dirname "$(dirname "$pm2_bin")")/package.json" 2> /dev/null || true)"
+
+  if [[ -z "$version" ]]; then
+    pm2_home="$(mktemp -d)"
+    version="$(PM2_HOME="$pm2_home" pm2 --version 2> /dev/null | tail -n 1 || true)"
+    PM2_HOME="$pm2_home" pm2 kill > /dev/null 2>&1 || true
+    rm -rf "$pm2_home"
+  fi
+
+  printf '%s\n' "$version"
+}
+
+# The pid of root's pm2 daemon (the one a pm2 command of this script would
+# use) when it runs, nothing otherwise. Never starts one, and never
+# reports the service user's daemon.
+root_pm2_daemon_pid() {
+  local pid_file="${ROOT_PM2_HOME}/pm2.pid"
+  local pid
+
+  if [[ "$ROOT_PM2_HOME" == "${SERVICE_HOME}/.pm2" || ! -f "$pid_file" ]]; then
+    return 0
+  fi
+
+  pid="$(cat "$pid_file" 2> /dev/null || true)"
+
+  if [[ "$pid" =~ ^[0-9]+$ ]] && grep -qa "God Daemon" "/proc/${pid}/cmdline" 2> /dev/null; then
+    printf '%s\n' "$pid"
+  fi
+}
+
 # npm run setup / update run as a regular user: continue as root.
 if [[ "$(id -u)" -ne 0 ]]; then
   if command -v sudo > /dev/null; then
@@ -543,6 +584,7 @@ fi
 
 BASE_FOLDER="${BASE_FOLDER%/}"
 SERVICE_HOME="/home/${SERVICE_USER}"
+ROOT_PM2_HOME="${PM2_HOME:-${HOME:-/root}/.pm2}"
 
 # ─────────────────────────────── Checks ─────────────────────────────────
 
@@ -756,13 +798,13 @@ require_version npm "$npm_version" "$MIN_NPM"
 success "npm ${npm_version}"
 
 if has_command pm2; then
-  pm2_version="$(pm2 --version 2> /dev/null | tail -n 1)"
-  require_version pm2 "$pm2_version" "$MIN_PM2"
-  success "pm2 ${pm2_version} already installed: kept as is"
+  installed_pm2_version="$(pm2_version)"
+  require_version pm2 "$installed_pm2_version" "$MIN_PM2"
+  success "pm2 ${installed_pm2_version} already installed: kept as is"
 else
   info "Installing pm2…"
   run_logged npm install --global --no-fund --no-audit pm2@latest
-  success "pm2 $(pm2 --version 2> /dev/null | tail -n 1) installed"
+  success "pm2 $(pm2_version) installed"
 fi
 
 # pnpm and yarn for the projects using them (detected at deploy time from
@@ -1030,8 +1072,15 @@ chmod -R go-w "$APP_DIR"
 step "Configuring pm2 startup"
 
 # The pm2 daemon runs in its own systemd unit, so restarting SolarOps
-# never stops the projects.
+# never stops the projects. pm2 startup is the only pm2 command run as
+# root: it does not start a root daemon, and if a pm2 version ever did,
+# that daemon is stopped (one that ran before is left alone).
+root_pm2_daemon_before="$(root_pm2_daemon_pid)"
 env PATH="$PATH" pm2 startup systemd -u "$SERVICE_USER" --hp "$SERVICE_HOME" > /dev/null
+
+if [[ -z "$root_pm2_daemon_before" && -n "$(root_pm2_daemon_pid)" ]]; then
+  PM2_HOME="$ROOT_PM2_HOME" pm2 kill > /dev/null 2>&1 || true
+fi
 systemctl enable "pm2-${SERVICE_USER}" > /dev/null 2>&1
 PM2_UNIT_READY=true
 

@@ -15,6 +15,9 @@ date, and the version in `package.json` follows.
   `/login`), or that redirects to `https://` when it is not told it runs behind HTTPS: SolarOps now
   asks it the way nginx does (`Host`, `X-Forwarded-Proto`...) and follows its redirects on its own
   domain.
+- The setup and `npm run update` left an idle pm2 daemon running as root (`/root/.pm2`, about
+  70 MB): checking pm2's version started one. The version is now read without starting pm2, and
+  nothing else runs pm2 as root but `pm2 startup`; the projects only use the `solarops` daemon.
 
 ## [0.3.3] - 2026-11-22
 
