@@ -7,6 +7,14 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
+## [Unreleased]
+
+### Fixed
+
+- The setup and `npm run update` left an idle pm2 daemon running as root (`/root/.pm2`, about
+  70 MB): checking pm2's version started one. The version is now read without starting pm2, and
+  nothing else runs pm2 as root but `pm2 startup`; the projects only use the `solarops` daemon.
+
 ## [0.3.3] - 2026-11-22
 
 ### Added
