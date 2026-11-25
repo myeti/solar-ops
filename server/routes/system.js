@@ -111,6 +111,7 @@ router.get('/counts', async (req, res) => {
     domains: projects.filter((project) => project.network.enabled && project.network.domain).length,
     postgres,
     mailRelays: await SmtpAccount.count(),
+    redis: projects.filter((project) => project.redis.enabled).length,
     alerts: presentAlertState().open.length,
   });
 });

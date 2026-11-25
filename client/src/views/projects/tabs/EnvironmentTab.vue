@@ -33,6 +33,8 @@
       </footer>
     </form>
 
+    <ProvidedEnvPanel :project="project" @saved="load" />
+
     <section class="panel">
       <header class="panel-header">
         <span class="panel-icon"><FeatherIcon name="cpu" :size="17" /></span>
@@ -69,6 +71,13 @@
               </td>
               <td>
                 <span class="badge" :class="sourceBadge(variable.source)">{{ variable.source }}</span>
+                <RouterLink
+                  v-if="variable.provider"
+                  :to="`/projects/${variable.provider.uid}/environment`"
+                  class="tiny env-provider"
+                >
+                  by {{ variable.provider.name }}
+                </RouterLink>
                 <span v-if="variable.overridden" class="tiny text-faint env-overridden-label">overridden</span>
               </td>
             </tr>
@@ -84,18 +93,20 @@
  * Environment tab: custom variables and the computed final environment.
  */
 import KeyValueEditor from '../../../components/KeyValueEditor.vue';
+import ProvidedEnvPanel from '../../../components/projects/environment/ProvidedEnvPanel.vue';
 
 const SOURCE_BADGES = {
   system: 'badge-violet',
   network: '',
   database: 'badge-cyan',
   smtp: 'badge-green',
+  provided: '',
   custom: 'badge-amber',
 };
 
 export default {
   name: 'EnvironmentTab',
-  components: { KeyValueEditor },
+  components: { KeyValueEditor, ProvidedEnvPanel },
   props: {
     project: {
       type: Object,
@@ -185,6 +196,10 @@ export default {
 .env-overridden .env-value {
   text-decoration: line-through;
   opacity: 0.5;
+}
+
+.env-provider {
+  margin-left: 6px;
 }
 
 .env-overridden-label {

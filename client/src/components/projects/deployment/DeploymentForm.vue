@@ -15,9 +15,8 @@
     </div>
 
     <div v-else class="panel-body stack-lg">
-      <div class="form-grid">
+      <div class="deploy-source-row">
         <FormField
-          class="full"
           label="Repository URL"
           :error="errors.url"
           hint="HTTPS (with a credential for private repositories) or SSH (uses the server's SSH key)."
@@ -42,6 +41,23 @@
           <template #hint>
             <RouterLink to="/infrastructure/git">Manage credentials</RouterLink>
           </template>
+        </FormField>
+      </div>
+      <div class="form-grid">
+        <FormField
+          class="full"
+          label="OS packages"
+          :error="errors.osPackages"
+          hint="Ubuntu packages the project needs (e.g. ffmpeg pandoc), checked on save and installed with apt before the install commands when missing."
+          optional
+        >
+          <input
+            v-model="form.osPackages"
+            class="input mono"
+            placeholder="ffmpeg pandoc"
+            spellcheck="false"
+            autocomplete="off"
+          />
         </FormField>
         <FormField
           label="Install commands"
@@ -139,6 +155,7 @@ function formFrom(deployment) {
     buildCommand: deployment.buildCommand,
     restartAfterDeploy: deployment.restartAfterDeploy,
     webhookEnabled: deployment.webhookEnabled,
+    osPackages: deployment.osPackages || '',
   };
 }
 
@@ -255,3 +272,18 @@ export default {
   },
 };
 </script>
+
+<style>
+/* Repository URL, branch and credential on one line (50 / 25 / 25). */
+.deploy-source-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px 18px;
+}
+
+@media (max-width: 900px) {
+  .deploy-source-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>

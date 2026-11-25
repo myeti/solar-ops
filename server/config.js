@@ -155,7 +155,12 @@ const config = {
     pgRestore: readString('SOLAROPS_PG_RESTORE_BIN', 'pg_restore'),
     nginxTest: readString('SOLAROPS_NGINX_TEST_CMD', 'sudo -n nginx -t'),
     nginxReload: readString('SOLAROPS_NGINX_RELOAD_CMD', 'sudo -n systemctl reload nginx'),
+    /** Installs OS packages as root (deploy/install.sh helper); empty: not allowed. */
+    aptInstall: readString('SOLAROPS_APT_INSTALL_CMD', ''),
   },
+
+  /** First port of the projects' Redis instances (services/redis.js). */
+  redisFirstPort: readInteger('SOLAROPS_REDIS_FIRST_PORT', 6400),
 
   nginx: {
     /** Also listen on IPv6 in generated server blocks. */

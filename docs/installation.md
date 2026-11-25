@@ -38,20 +38,25 @@ The setup asks for SolarOps's **domain** (empty: none, reach it through an SSH t
 **e-mail** used for Let's Encrypt. It runs as root (it asks for your `sudo` password if needed) and:
 
 1. installs what is missing among **nginx, certbot** (+ OVH / Cloudflare / DigitalOcean DNS
-   plugins), **PostgreSQL**, git, build tools, **pm2**, and **pnpm / yarn** (corepack shims). What
+   plugins), **PostgreSQL**, **Redis**, git, build tools, **pm2**, and **pnpm / yarn** (corepack shims). What
    is already installed is kept as is, never replaced nor upgraded; a version too old stops the
    script, which tells what to upgrade (minimums: Node.js 24, npm 10, git 2.25, nginx 1.18,
    certbot 1.12, pm2 5, PostgreSQL 13, and `pg_dump` at least as recent as the server),
 2. creates the `solarops` system user and `/var/lib/solarops` (data), and lets that user create
    projects in `/var/www` (an ACL entry: the folder's owner and permissions are kept),
 3. adds `include /var/www/*/etc/nginx.conf;` to nginx (`/etc/nginx/conf.d/solarops.conf`),
-4. adds a sudo rule letting `solarops` run **only** `nginx -t` and `systemctl reload nginx`,
-5. creates the PostgreSQL role `solarops_admin` (`CREATEDB CREATEROLE`, *not* superuser),
-6. sets up `pm2 startup` so projects come back after a reboot, and **pm2-logrotate** (project logs
+4. adds a sudo rule letting `solarops` run **only** `nginx -t`, `systemctl reload nginx` and
+   `/usr/local/lib/solarops/apt-install` (a root-owned helper installing the OS packages projects
+   declare, with `apt-get install` and nothing else; it runs apt in a short-lived systemd unit, out
+   of the SolarOps service's read-only sandbox),
+5. installs `redis-server` for the projects' Redis tabs (an existing Redis or Valkey is kept) and
+   disables its system service, each project running its own instance with pm2,
+6. creates the PostgreSQL role `solarops_admin` (`CREATEDB CREATEROLE`, *not* superuser),
+7. sets up `pm2 startup` so projects come back after a reboot, and **pm2-logrotate** (project logs
    rotated above 10 MB and nightly, 14 compressed files kept),
-7. builds the UI, installs `solarops.service` and the `solarops` CLI,
-8. adds `solarops-certs.timer`, a daily certificate renewal (safety net for SolarOps's scheduler),
-9. with a domain, serves SolarOps itself over HTTPS (see [SolarOps itself](guide.md#solarops-itself)).
+8. builds the UI, installs `solarops.service` and the `solarops` CLI,
+9. adds `solarops-certs.timer`, a daily certificate renewal (safety net for SolarOps's scheduler),
+10. with a domain, serves SolarOps itself over HTTPS (see [SolarOps itself](guide.md#solarops-itself)).
 
 The setup can also be run as `sudo ./deploy/install.sh` (same questions, same options).
 

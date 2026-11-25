@@ -5,14 +5,16 @@
 #
 # Node.js 24 must be installed beforehand, for the whole system (see the
 # README). The script installs the other OS dependencies: nginx, certbot (+
-# OVH / Cloudflare / DigitalOcean DNS plugins), PostgreSQL, git, build tools,
+# OVH / Cloudflare / DigitalOcean DNS plugins), PostgreSQL, Redis (for the
+# projects, its system service disabled), git, build tools,
 # pm2, and pnpm / yarn through corepack (for projects using them).
 #
 # Then (unless --deps-only) prepares the server for SolarOps:
 #   - a dedicated "solarops" system user,
 #   - the projects base folder and SolarOps's data folder,
 #   - the nginx include loading every project configuration,
-#   - a sudo rule allowing SolarOps to test and reload nginx (nothing else),
+#   - a sudo rule allowing SolarOps to test and reload nginx, and to install
+#     OS packages through a root-owned helper (nothing else),
 #   - a PostgreSQL role for SolarOps (CREATEDB + CREATEROLE, not superuser),
 #   - pm2 startup (projects come back after a reboot) and pm2-logrotate
 #     (project logs are rotated and compressed),
@@ -749,6 +751,18 @@ else
   warn "certbot does not come from apt (snap?): its DNS plugins are not installed here. For DNS-01, add them the same way (e.g. snap install certbot-dns-ovh)."
 fi
 
+# Redis for projects (their Redis tab): SolarOps runs one redis-server per
+# project with pm2, never the system service. A Redis (or Valkey) already on
+# this server is kept as it is, its service included.
+if has_command redis-server || has_command valkey-server; then
+  success "$( (redis-server --version 2>/dev/null || valkey-server --version) | awk '{sub("v=", "", $3); print $1, $3}') already installed: kept as is"
+else
+  apt_install_missing redis-server
+  # The package starts a shared instance on port 6379: projects get their own.
+  systemctl disable --now redis-server > /dev/null 2>&1 || true
+  success "$(redis-server --version | awk '{sub("v=", "", $3); print $1, $3}') installed (its system service disabled: projects get their own instance)"
+fi
+
 if [[ -n "$PG_EXTERNAL_HOST" ]]; then
   # External server: only pg_dump / pg_restore / psql are needed here.
   # Their major version must be >= the server's (checked once connected).
@@ -958,11 +972,60 @@ if ! grep -RqsE '^\s*server_names_hash_bucket_size' /etc/nginx/nginx.conf /etc/n
   success "server_names_hash_bucket_size 128"
 fi
 
-# Allow SolarOps to validate and reload nginx — and nothing else.
+# OS packages of projects (Deployment › Source): a root-owned helper that
+# only runs apt-get install on valid package names.
+APT_HELPER="/usr/local/lib/solarops/apt-install"
+install -d -m 0755 -o root -g root "$(dirname "$APT_HELPER")"
+cat > "${APT_HELPER}.tmp" <<'HELPER'
+#!/bin/bash
+# Managed by SolarOps (deploy/install.sh): installs the OS packages projects
+# need. Only Debian / Ubuntu package names are accepted, nothing else runs.
+set -euo pipefail
+
+if [[ "$#" -eq 0 ]]; then
+  echo "usage: apt-install <package>..." >&2
+  exit 2
+fi
+
+for name in "$@"; do
+  if [[ ! "$name" =~ ^[a-z0-9][a-z0-9+.-]{1,99}$ ]]; then
+    echo "Invalid package name: ${name}" >&2
+    exit 2
+  fi
+done
+
+# SolarOps's service mounts /usr and /etc read-only (ProtectSystem), for
+# everything it starts: apt runs in its own short-lived unit instead, outside
+# that sandbox, its output streamed back.
+if [[ "${SOLAROPS_APT_UNIT:-}" != "1" ]] && command -v systemd-run > /dev/null; then
+  exec systemd-run --quiet --wait --pipe --collect \
+    --description="SolarOps: install OS packages" \
+    --setenv=SOLAROPS_APT_UNIT=1 -- "$0" "$@"
+fi
+
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l
+
+apt_get() {
+  apt-get -o DPkg::Lock::Timeout=300 "$@"
+}
+
+# Outdated package lists: refresh them once, then try again.
+if ! apt_get install -y --no-install-recommends "$@"; then
+  apt_get update -qq
+  apt_get install -y --no-install-recommends "$@"
+fi
+HELPER
+install -m 0755 -o root -g root "${APT_HELPER}.tmp" "$APT_HELPER"
+rm -f "${APT_HELPER}.tmp"
+set_env_value SOLAROPS_APT_INSTALL_CMD "sudo -n ${APT_HELPER}"
+success "OS packages helper ${APT_HELPER}"
+
+# Allow SolarOps to validate and reload nginx, and to install OS packages
+# through the helper above — nothing else.
 SUDOERS_FILE="/etc/sudoers.d/solarops"
 cat > "${SUDOERS_FILE}.tmp" <<EOF
-# Managed by SolarOps (deploy/install.sh): validate and reload nginx only.
-${SERVICE_USER} ALL=(root) NOPASSWD: ${NGINX_BIN} -t, ${SYSTEMCTL_BIN} reload nginx
+# Managed by SolarOps (deploy/install.sh): validate and reload nginx, install OS packages.
+${SERVICE_USER} ALL=(root) NOPASSWD: ${NGINX_BIN} -t, ${SYSTEMCTL_BIN} reload nginx, ${APT_HELPER} *
 EOF
 
 if visudo -cf "${SUDOERS_FILE}.tmp" > /dev/null; then

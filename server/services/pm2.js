@@ -238,6 +238,80 @@ async function assertNotForeignProcess(project) {
   }
 }
 
+/** The pm2 process of a project's Redis instance: ghost => ghost__redis. */
+export function redisProcessName(project) {
+  return `${project.uid}__redis`;
+}
+
+/**
+ * The pm2 process of a project's Redis instance, or null.
+ *
+ * @param {import('../models/Project.js').default} project
+ */
+export async function getRedisProcess(project) {
+  const processes = await listProcesses();
+
+  return processes.find((entry) => entry.name === redisProcessName(project)) || null;
+}
+
+/**
+ * (Re)start a project's Redis instance from its pm2 declaration
+ * (etc/pm2-redis.json, written here). A process with that name SolarOps
+ * did not start is never replaced.
+ *
+ * @param {import('../models/Project.js').default} project
+ * @param {object} app the pm2 app declaration (see services/redis.js)
+ */
+export async function startRedisProcess(project, app) {
+  const name = redisProcessName(project);
+  const current = await getRedisProcess(project);
+
+  if (current !== null && !current.managed) {
+    throw conflict(
+      `A pm2 process named "${name}" already exists and was not started by SolarOps: it was left running. Remove it (pm2 delete ${name}) to let SolarOps manage it.`,
+    );
+  }
+
+  const paths = await resolveProjectPaths(project);
+  const declaration = { managedBy: 'SolarOps', apps: [{ ...app, name }] };
+
+  await writeManagedFile(paths.redisPm2Config, `${JSON.stringify(declaration, null, 2)}\n`, {
+    marker: PM2_MARKER,
+    mode: 0o600,
+  });
+  await pm2(['delete', name], { allowFailure: true });
+  await pm2(['start', paths.redisPm2Config]);
+  await saveProcessList();
+}
+
+/**
+ * Stop a project's Redis instance (Redis saves its data on the way out).
+ *
+ * @param {import('../models/Project.js').default} project
+ */
+export async function stopRedisProcess(project) {
+  await pm2(['stop', redisProcessName(project)], { allowFailure: true });
+  await saveProcessList();
+}
+
+/**
+ * Remove a project's Redis instance from pm2 (one SolarOps did not start is left).
+ *
+ * @param {import('../models/Project.js').default} project
+ */
+export async function deleteRedisProcess(project) {
+  const current = await getRedisProcess(project);
+
+  if (current === null || !current.managed) {
+    return false;
+  }
+
+  await pm2(['delete', redisProcessName(project)], { allowFailure: true });
+  await saveProcessList();
+
+  return true;
+}
+
 /**
  * Persist the process list so `pm2 resurrect` (pm2 startup) restores it at boot.
  */

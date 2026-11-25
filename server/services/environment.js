@@ -11,8 +11,14 @@
  *                ANALYTICS_URL (the tracker script), when analytics are on
  *                (services/analytics.js)
  *   3. database  DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DATABASE_URL
- *   4. smtp      SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
- *   5. custom    variables defined by the admin (can override anything above)
+ *   4. redis     REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_URL, when the
+ *                project has its Redis instance (services/redis.js)
+ *   5. smtp      SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+ *   6. provided  variables other projects provide (Environment tab), prefixed
+ *                with their uid: umami's SCRIPT_URL is UMAMI_SCRIPT_URL; their
+ *                values are resolved in the providing project (its own
+ *                variables), which never passes on what it receives itself
+ *   7. custom    variables defined by the admin (can override anything above)
  *
  * Custom values may reference other variables: ${NAME} is replaced by the
  * value NAME has for the process (API_URL=${PUBLIC_URL}/api), whatever its
@@ -22,7 +28,7 @@
  * unexpanded: both are reported (`problems`). A value built from a secret
  * is a secret.
  */
-import { SmtpAccount } from '../models/index.js';
+import { Project, SmtpAccount } from '../models/index.js';
 import { analyticsScriptUrl } from './analytics.js';
 import { resolveProjectPaths } from './projectPaths.js';
 import { ensureProjectSecrets } from './projectSecrets.js';
@@ -37,16 +43,103 @@ function projectDatabaseHost(postgresSettings) {
 }
 
 /**
+ * The prefix of the variables a project provides: "umami" => "UMAMI_",
+ * "uptime-kuma" => "UPTIME_KUMA_" (a uid starting with a digit gets "_").
+ *
+ * @param {string} uid
+ */
+export function providedPrefix(uid) {
+  let prefix = `${uid.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_`;
+
+  if (/^[0-9]/.test(prefix)) {
+    prefix = `_${prefix}`;
+  }
+
+  return prefix;
+}
+
+/**
+ * The variables a project provides to the others, resolved in its own
+ * context: `${NAME}` is the value NAME has for the providing project.
+ *
+ * @param {import('../models/Project.js').default} provider
+ * @returns {Promise<Array<{key: string, name: string, value: string, display: string, secret: boolean, problems: string[]}>>}
+ *   key: prefixed (what the others receive), name: as written by the provider
+ */
+export async function listProvidedVariables(provider) {
+  const provided = provider.providedEnv;
+
+  if (provider.system || provided.variables.length === 0) {
+    return [];
+  }
+
+  // Its own variables are already expanded: they are references, not templates.
+  const own = (await listProjectVariables(provider, { withProvided: false })).map((variable) => {
+    let source = variable.source;
+
+    if (source === 'custom') {
+      source = 'own';
+    }
+
+    return { ...variable, source };
+  });
+  const entries = provided.variables.map((entry) => ({
+    key: entry.key,
+    value: entry.value,
+    source: 'custom',
+    secret: looksSecret(entry.key),
+    overridden: false,
+  }));
+
+  expandCustomVariables([...own, ...entries]);
+
+  const prefix = providedPrefix(provider.uid);
+
+  return entries.map((entry) => ({
+    key: `${prefix}${entry.key}`,
+    name: entry.key,
+    value: entry.value,
+    display: entry.display,
+    secret: entry.secret,
+    problems: entry.problems,
+  }));
+}
+
+/**
+ * What the other enabled providers give a project.
+ *
+ * @param {import('../models/Project.js').default} consumer
+ */
+async function receivedVariables(consumer) {
+  const providers = await Project.findAll({ where: { system: false }, order: [['uid', 'ASC']] });
+  const received = [];
+
+  for (const provider of providers) {
+    if (provider.id === consumer.id || !provider.providedEnv.enabled) {
+      continue;
+    }
+
+    for (const entry of await listProvidedVariables(provider)) {
+      received.push({ ...entry, provider: { uid: provider.uid, name: provider.name } });
+    }
+  }
+
+  return received;
+}
+
+/**
  * Build the list of variables for a project.
  *
  * @param {import('../models/Project.js').default} project
+ * @param {object} [options]
+ * @param {boolean} [options.withProvided] include what other projects provide (default true)
  * @returns {Promise<Array<{key: string, value: string, source: string, secret: boolean, overridden: boolean}>>}
  */
-export async function listProjectVariables(project) {
+export async function listProjectVariables(project, options = {}) {
   const variables = [];
 
-  const add = (key, value, source, secret) => {
-    variables.push({ key, value: String(value), source, secret, overridden: false });
+  const add = (key, value, source, secret, extra = {}) => {
+    variables.push({ key, value: String(value), source, secret, overridden: false, ...extra });
   };
 
   add('NODE_ENV', 'production', 'system', false);
@@ -100,6 +193,14 @@ export async function listProjectVariables(project) {
     add('DATABASE_URL', url, 'database', true);
   }
 
+  const redis = project.redis;
+  if (redis.enabled && redis.port && redis.password) {
+    add('REDIS_HOST', '127.0.0.1', 'redis', false);
+    add('REDIS_PORT', redis.port, 'redis', false);
+    add('REDIS_PASSWORD', redis.password, 'redis', true);
+    add('REDIS_URL', `redis://:${encodeURIComponent(redis.password)}@127.0.0.1:${redis.port}/0`, 'redis', true);
+  }
+
   const smtp = project.smtp;
   if (smtp.enabled && smtp.accountId) {
     const account = await SmtpAccount.findByPk(smtp.accountId);
@@ -111,6 +212,12 @@ export async function listProjectVariables(project) {
       add('SMTP_USER', account.username || '', 'smtp', false);
       add('SMTP_PASSWORD', account.password || '', 'smtp', true);
       add('SMTP_FROM', smtp.fromAddress || account.fromAddress, 'smtp', false);
+    }
+  }
+
+  if (options.withProvided !== false && !project.system) {
+    for (const entry of await receivedVariables(project)) {
+      add(entry.key, entry.value, 'provided', entry.secret, { provider: entry.provider });
     }
   }
 
@@ -278,7 +385,9 @@ const SOURCE_TITLES = {
   system: 'SolarOps',
   network: 'Network',
   database: 'Database (PostgreSQL)',
+  redis: 'Redis',
   smtp: 'Mail (SMTP)',
+  provided: 'Provided by other projects',
   custom: 'Custom',
 };
 

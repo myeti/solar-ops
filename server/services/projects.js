@@ -16,6 +16,7 @@ import { readProjectCertificate } from './certificates.js';
 import { answersNow } from './health.js';
 import { applyProjectNginx, removeProjectNginx } from './nginx.js';
 import { deleteProjectProcess, getProcessMap, startProjectProcess, stopProjectProcess } from './pm2.js';
+import { removeRedisWithProject, startRedisWithProject, stopRedisWithProject } from './redis.js';
 import { dropDatabaseAndRole, provisionDatabase, setRolePassword, verifyCredentials } from './postgres.js';
 import {
   describeExistingFolder,
@@ -396,6 +397,8 @@ export async function startProject(project) {
     throw badRequest('Activate the project before starting it.');
   }
 
+  // Its Redis first, when it has one (a running one is left alone).
+  await startRedisWithProject(project);
   await startProjectProcess(project);
 }
 
@@ -408,6 +411,7 @@ export async function stopProject(project) {
   assertNotSystem(project);
   assertHasProcess(project);
   await stopProjectProcess(project);
+  await stopRedisWithProject(project);
 }
 
 /**
@@ -427,6 +431,13 @@ export async function setProjectActive(project, active) {
 
   if (!active && !project.isStatic) {
     await stopProjectProcess(project).catch((error) => warnings.push(`pm2: ${error.message}`));
+  }
+
+  // Redis follows the project: stopped when deactivated, back when activated.
+  if (active) {
+    await startRedisWithProject(project).catch((error) => warnings.push(`Redis: ${error.message}`));
+  } else {
+    await stopRedisWithProject(project).catch((error) => warnings.push(`Redis: ${error.message}`));
   }
 
   if (project.network.enabled) {
@@ -602,6 +613,7 @@ export async function deleteProject(project, { removeFiles, dropDatabase }) {
   }
 
   await removeProjectNginx(project).catch((error) => warnings.push(`nginx: ${error.message}`));
+  await removeRedisWithProject(project).catch((error) => warnings.push(`Redis: ${error.message}`));
 
   const database = project.database;
 
