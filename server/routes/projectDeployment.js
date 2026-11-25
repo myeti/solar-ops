@@ -8,6 +8,7 @@ import { badRequest, conflict } from '../lib/errors.js';
 import { Validator } from '../lib/validation.js';
 import { recordAudit } from '../services/audit.js';
 import { normalizeCommandLines, queueDeployment } from '../services/deploy.js';
+import { MAX_OS_PACKAGES, findUnknownPackages, parseOsPackages } from '../services/osPackages.js';
 import { GIT_BRANCH_PATTERN, GIT_URL_PATTERN, readHeadCommit, testRepositoryAccess } from '../services/git.js';
 import { getProjectProcess } from '../services/pm2.js';
 import { resolveProjectPaths } from '../services/projectPaths.js';
@@ -43,7 +44,29 @@ router.put('/', async (req, res) => {
   const buildCommand = input.string('buildCommand', { max: 2000, multiline: true, defaultValue: '' });
   const restartAfterDeploy = input.boolean('restartAfterDeploy', { defaultValue: true });
   const webhookEnabled = input.boolean('webhookEnabled', { defaultValue: false });
+  const osPackagesText = input.string('osPackages', { max: 2000, multiline: true, defaultValue: '' });
   input.assertValid();
+
+  // OS packages: valid names, known by apt when it is there.
+  const osPackages = parseOsPackages(osPackagesText);
+
+  if (osPackages.invalid.length > 0) {
+    throw badRequest(`Invalid package name: ${osPackages.invalid.join(', ')}.`, {
+      fields: { osPackages: `Invalid: ${osPackages.invalid.join(', ')}` },
+    });
+  }
+
+  if (osPackages.names.length > MAX_OS_PACKAGES) {
+    throw badRequest(`At most ${MAX_OS_PACKAGES} OS packages.`, { fields: { osPackages: 'Too many packages.' } });
+  }
+
+  const check = await findUnknownPackages(osPackages.names);
+
+  if (check.unknown.length > 0) {
+    throw badRequest(`Unknown to apt on this server: ${check.unknown.join(', ')}.`, {
+      fields: { osPackages: `Not found by apt: ${check.unknown.join(', ')}` },
+    });
+  }
 
   if (gitCredentialId && (await GitCredential.findByPk(gitCredentialId)) === null) {
     throw badRequest('This git credential does not exist.', { fields: { gitCredentialId: 'Unknown credential.' } });
@@ -67,16 +90,17 @@ router.put('/', async (req, res) => {
     restartAfterDeploy,
     webhookEnabled,
     webhookSecret,
+    osPackages: osPackages.names.join(' '),
   };
   await project.save();
   await recordAudit({
     req,
     action: 'project.deployment-update',
     target: project.uid,
-    details: { enabled, url, branch, webhookEnabled },
+    details: { enabled, url, branch, webhookEnabled, osPackages: osPackages.names },
   });
 
-  res.json({ project: await presentProject(project) });
+  res.json({ project: await presentProject(project), osPackagesChecked: check.checked });
 });
 
 /**
@@ -219,10 +243,27 @@ router.post('/pull', async (req, res) => {
     }
   }
 
-  const task = await queueDeployment(req.project, { pullOnly: true, trigger: 'manual', triggeredBy: actorOf(req) });
+  const task = await queueDeployment(req.project, { mode: 'pull', trigger: 'manual', triggeredBy: actorOf(req) });
   await recordAudit({ req, action: 'project.pull', target: req.project.uid, details: { taskId: task.id } });
 
   res.status(202).json({ task: task.toPublic() });
 });
+
+/**
+ * Queue an install only (OS packages + dependencies) or a build only, on
+ * the sources as they are, without a restart.
+ */
+for (const mode of ['install', 'build']) {
+  router.post(`/${mode}`, async (req, res) => {
+    if (!req.project.deployment.enabled) {
+      throw badRequest('Enable and configure the deployment first.');
+    }
+
+    const task = await queueDeployment(req.project, { mode, trigger: 'manual', triggeredBy: actorOf(req) });
+    await recordAudit({ req, action: `project.${mode}`, target: req.project.uid, details: { taskId: task.id } });
+
+    res.status(202).json({ task: task.toPublic() });
+  });
+}
 
 export default router;

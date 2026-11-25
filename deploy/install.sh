@@ -5,14 +5,16 @@
 #
 # Node.js 24 must be installed beforehand, for the whole system (see the
 # README). The script installs the other OS dependencies: nginx, certbot (+
-# OVH / Cloudflare / DigitalOcean DNS plugins), PostgreSQL, git, build tools,
+# OVH / Cloudflare / DigitalOcean DNS plugins), PostgreSQL, Redis (for the
+# projects, its system service disabled), git, build tools,
 # pm2, and pnpm / yarn through corepack (for projects using them).
 #
 # Then (unless --deps-only) prepares the server for SolarOps:
 #   - a dedicated "solarops" system user,
 #   - the projects base folder and SolarOps's data folder,
 #   - the nginx include loading every project configuration,
-#   - a sudo rule allowing SolarOps to test and reload nginx (nothing else),
+#   - a sudo rule allowing SolarOps to test and reload nginx, and to install
+#     OS packages through a root-owned helper (nothing else),
 #   - a PostgreSQL role for SolarOps (CREATEDB + CREATEROLE, not superuser),
 #   - pm2 startup (projects come back after a reboot) and pm2-logrotate
 #     (project logs are rotated and compressed),
@@ -351,6 +353,47 @@ has_command() {
   command -v "$1" > /dev/null || [[ -x "/usr/sbin/$1" ]]
 }
 
+# The installed pm2 version, read from its package.json: "pm2 --version",
+# like most pm2 commands, starts a pm2 daemon for its caller (here root),
+# which would then stay up for nothing. An install laid out otherwise is
+# asked with a throwaway PM2_HOME, whose daemon is stopped right away.
+pm2_version() {
+  local pm2_bin
+  local version
+  local pm2_home
+
+  pm2_bin="$(readlink -f "$(command -v pm2)")"
+  version="$(node -e 'const p = require(process.argv[1]); if (p.name === "pm2") { console.log(p.version); }' \
+    "$(dirname "$(dirname "$pm2_bin")")/package.json" 2> /dev/null || true)"
+
+  if [[ -z "$version" ]]; then
+    pm2_home="$(mktemp -d)"
+    version="$(PM2_HOME="$pm2_home" pm2 --version 2> /dev/null | tail -n 1 || true)"
+    PM2_HOME="$pm2_home" pm2 kill > /dev/null 2>&1 || true
+    rm -rf "$pm2_home"
+  fi
+
+  printf '%s\n' "$version"
+}
+
+# The pid of root's pm2 daemon (the one a pm2 command of this script would
+# use) when it runs, nothing otherwise. Never starts one, and never
+# reports the service user's daemon.
+root_pm2_daemon_pid() {
+  local pid_file="${ROOT_PM2_HOME}/pm2.pid"
+  local pid
+
+  if [[ "$ROOT_PM2_HOME" == "${SERVICE_HOME}/.pm2" || ! -f "$pid_file" ]]; then
+    return 0
+  fi
+
+  pid="$(cat "$pid_file" 2> /dev/null || true)"
+
+  if [[ "$pid" =~ ^[0-9]+$ ]] && grep -qa "God Daemon" "/proc/${pid}/cmdline" 2> /dev/null; then
+    printf '%s\n' "$pid"
+  fi
+}
+
 # npm run setup / update run as a regular user: continue as root.
 if [[ "$(id -u)" -ne 0 ]]; then
   if command -v sudo > /dev/null; then
@@ -543,6 +586,7 @@ fi
 
 BASE_FOLDER="${BASE_FOLDER%/}"
 SERVICE_HOME="/home/${SERVICE_USER}"
+ROOT_PM2_HOME="${PM2_HOME:-${HOME:-/root}/.pm2}"
 
 # ─────────────────────────────── Checks ─────────────────────────────────
 
@@ -707,6 +751,18 @@ else
   warn "certbot does not come from apt (snap?): its DNS plugins are not installed here. For DNS-01, add them the same way (e.g. snap install certbot-dns-ovh)."
 fi
 
+# Redis for projects (their Redis tab): SolarOps runs one redis-server per
+# project with pm2, never the system service. A Redis (or Valkey) already on
+# this server is kept as it is, its service included.
+if has_command redis-server || has_command valkey-server; then
+  success "$( (redis-server --version 2>/dev/null || valkey-server --version) | awk '{sub("v=", "", $3); print $1, $3}') already installed: kept as is"
+else
+  apt_install_missing redis-server
+  # The package starts a shared instance on port 6379: projects get their own.
+  systemctl disable --now redis-server > /dev/null 2>&1 || true
+  success "$(redis-server --version | awk '{sub("v=", "", $3); print $1, $3}') installed (its system service disabled: projects get their own instance)"
+fi
+
 if [[ -n "$PG_EXTERNAL_HOST" ]]; then
   # External server: only pg_dump / pg_restore / psql are needed here.
   # Their major version must be >= the server's (checked once connected).
@@ -756,13 +812,13 @@ require_version npm "$npm_version" "$MIN_NPM"
 success "npm ${npm_version}"
 
 if has_command pm2; then
-  pm2_version="$(pm2 --version 2> /dev/null | tail -n 1)"
-  require_version pm2 "$pm2_version" "$MIN_PM2"
-  success "pm2 ${pm2_version} already installed: kept as is"
+  installed_pm2_version="$(pm2_version)"
+  require_version pm2 "$installed_pm2_version" "$MIN_PM2"
+  success "pm2 ${installed_pm2_version} already installed: kept as is"
 else
   info "Installing pm2…"
   run_logged npm install --global --no-fund --no-audit pm2@latest
-  success "pm2 $(pm2 --version 2> /dev/null | tail -n 1) installed"
+  success "pm2 $(pm2_version) installed"
 fi
 
 # pnpm and yarn for the projects using them (detected at deploy time from
@@ -916,11 +972,60 @@ if ! grep -RqsE '^\s*server_names_hash_bucket_size' /etc/nginx/nginx.conf /etc/n
   success "server_names_hash_bucket_size 128"
 fi
 
-# Allow SolarOps to validate and reload nginx — and nothing else.
+# OS packages of projects (Deployment › Source): a root-owned helper that
+# only runs apt-get install on valid package names.
+APT_HELPER="/usr/local/lib/solarops/apt-install"
+install -d -m 0755 -o root -g root "$(dirname "$APT_HELPER")"
+cat > "${APT_HELPER}.tmp" <<'HELPER'
+#!/bin/bash
+# Managed by SolarOps (deploy/install.sh): installs the OS packages projects
+# need. Only Debian / Ubuntu package names are accepted, nothing else runs.
+set -euo pipefail
+
+if [[ "$#" -eq 0 ]]; then
+  echo "usage: apt-install <package>..." >&2
+  exit 2
+fi
+
+for name in "$@"; do
+  if [[ ! "$name" =~ ^[a-z0-9][a-z0-9+.-]{1,99}$ ]]; then
+    echo "Invalid package name: ${name}" >&2
+    exit 2
+  fi
+done
+
+# SolarOps's service mounts /usr and /etc read-only (ProtectSystem), for
+# everything it starts: apt runs in its own short-lived unit instead, outside
+# that sandbox, its output streamed back.
+if [[ "${SOLAROPS_APT_UNIT:-}" != "1" ]] && command -v systemd-run > /dev/null; then
+  exec systemd-run --quiet --wait --pipe --collect \
+    --description="SolarOps: install OS packages" \
+    --setenv=SOLAROPS_APT_UNIT=1 -- "$0" "$@"
+fi
+
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l
+
+apt_get() {
+  apt-get -o DPkg::Lock::Timeout=300 "$@"
+}
+
+# Outdated package lists: refresh them once, then try again.
+if ! apt_get install -y --no-install-recommends "$@"; then
+  apt_get update -qq
+  apt_get install -y --no-install-recommends "$@"
+fi
+HELPER
+install -m 0755 -o root -g root "${APT_HELPER}.tmp" "$APT_HELPER"
+rm -f "${APT_HELPER}.tmp"
+set_env_value SOLAROPS_APT_INSTALL_CMD "sudo -n ${APT_HELPER}"
+success "OS packages helper ${APT_HELPER}"
+
+# Allow SolarOps to validate and reload nginx, and to install OS packages
+# through the helper above — nothing else.
 SUDOERS_FILE="/etc/sudoers.d/solarops"
 cat > "${SUDOERS_FILE}.tmp" <<EOF
-# Managed by SolarOps (deploy/install.sh): validate and reload nginx only.
-${SERVICE_USER} ALL=(root) NOPASSWD: ${NGINX_BIN} -t, ${SYSTEMCTL_BIN} reload nginx
+# Managed by SolarOps (deploy/install.sh): validate and reload nginx, install OS packages.
+${SERVICE_USER} ALL=(root) NOPASSWD: ${NGINX_BIN} -t, ${SYSTEMCTL_BIN} reload nginx, ${APT_HELPER} *
 EOF
 
 if visudo -cf "${SUDOERS_FILE}.tmp" > /dev/null; then
@@ -1030,8 +1135,15 @@ chmod -R go-w "$APP_DIR"
 step "Configuring pm2 startup"
 
 # The pm2 daemon runs in its own systemd unit, so restarting SolarOps
-# never stops the projects.
+# never stops the projects. pm2 startup is the only pm2 command run as
+# root: it does not start a root daemon, and if a pm2 version ever did,
+# that daemon is stopped (one that ran before is left alone).
+root_pm2_daemon_before="$(root_pm2_daemon_pid)"
 env PATH="$PATH" pm2 startup systemd -u "$SERVICE_USER" --hp "$SERVICE_HOME" > /dev/null
+
+if [[ -z "$root_pm2_daemon_before" && -n "$(root_pm2_daemon_pid)" ]]; then
+  PM2_HOME="$ROOT_PM2_HOME" pm2 kill > /dev/null 2>&1 || true
+fi
 systemctl enable "pm2-${SERVICE_USER}" > /dev/null 2>&1
 PM2_UNIT_READY=true
 

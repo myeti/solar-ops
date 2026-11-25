@@ -43,6 +43,13 @@ async function takenPorts(exceptProjectId = null) {
     taken.set(project.port, project.name);
   }
 
+  // The projects' Redis instances (services/redis.js) have ports too.
+  for (const project of await Project.findAll()) {
+    if (project.redis.port && (exceptProjectId === null || project.id !== exceptProjectId)) {
+      taken.set(project.redis.port, `${project.name} (Redis)`);
+    }
+  }
+
   taken.set(config.port, 'SolarOps');
 
   return taken;

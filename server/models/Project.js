@@ -33,6 +33,8 @@ export default class Project extends Model {
       installCommand: '',
       buildCommand: DEFAULT_BUILD_COMMAND,
       restartAfterDeploy: true,
+      // OS packages installed with apt before the install commands (services/osPackages.js).
+      osPackages: '',
       webhookEnabled: false,
       webhookSecret: '',
       // Seconds the app is given to answer on / after a (re)start; null:
@@ -78,6 +80,21 @@ export default class Project extends Model {
   }
 
   /** Default configuration of the SMTP component. */
+  /** A dedicated Redis instance run with pm2 (services/redis.js). */
+  static defaultRedis() {
+    return {
+      enabled: false,
+      port: null,
+      password: '',
+      maxMemoryMb: 64,
+      // noeviction (data: refuse writes when full) | allkeys-lru (cache)
+      policy: 'noeviction',
+      // rdb (snapshots) | aof (append-only file) | none
+      persistence: 'rdb',
+      provisionedAt: null,
+    };
+  }
+
   static defaultSmtp() {
     return {
       enabled: false,
@@ -127,6 +144,11 @@ export default class Project extends Model {
     };
   }
 
+  /** Redis config merged with defaults (never null). */
+  get redis() {
+    return { ...Project.defaultRedis(), ...(this.redisConfig || {}) };
+  }
+
   /** SMTP config merged with defaults (never null). */
   get smtp() {
     return { ...Project.defaultSmtp(), ...(this.smtpConfig || {}) };
@@ -170,6 +192,7 @@ export default class Project extends Model {
       port: this.port,
       startCommand: this.startCommand,
       envCount: this.env.length,
+      provides: { enabled: this.providedEnv.enabled === true, count: this.providedEnv.variables.length },
       deployment: {
         enabled: deployment.enabled,
         gitCredentialId: deployment.gitCredentialId,
@@ -178,6 +201,7 @@ export default class Project extends Model {
         installCommand: deployment.installCommand,
         buildCommand: deployment.buildCommand,
         restartAfterDeploy: deployment.restartAfterDeploy,
+        osPackages: deployment.osPackages,
         webhookEnabled: deployment.webhookEnabled,
         hasWebhookSecret: Boolean(deployment.webhookSecret),
         livenessTimeoutSeconds: deployment.livenessTimeoutSeconds,
@@ -192,6 +216,14 @@ export default class Project extends Model {
         backups: database.backups,
       },
       smtp: this.smtp,
+      redis: {
+        enabled: this.redis.enabled,
+        port: this.redis.port,
+        maxMemoryMb: this.redis.maxMemoryMb,
+        policy: this.redis.policy,
+        persistence: this.redis.persistence,
+        provisionedAt: this.redis.provisionedAt,
+      },
       // The access users' password hashes never leave the server.
       network: { ...this.network, access: publicAccess(this.network) },
       createdAt: this.createdAt,
@@ -258,8 +290,15 @@ Project.init(
     env: encryptedJson('env', 'env_enc', []),
     /** Generated secrets ({ jwtSecret }), fully encrypted: services/projectSecrets.js. */
     secrets: encryptedJson('secrets', 'secrets_enc', {}),
+    /**
+     * Variables provided to every other project, prefixed with this uid
+     * ({ enabled, variables: [{ key, value }] }), fully encrypted:
+     * services/environment.js.
+     */
+    providedEnv: encryptedJson('providedEnv', 'provided_env_enc', { enabled: false, variables: [] }),
     deploymentConfig: jsonWithSecrets('deploymentConfig', 'deployment_config', ['webhookSecret']),
     databaseConfig: jsonWithSecrets('databaseConfig', 'database_config', ['password']),
+    redisConfig: jsonWithSecrets('redisConfig', 'redis_config', ['password']),
     smtpConfig: {
       type: DataTypes.JSON,
       allowNull: true,

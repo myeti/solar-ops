@@ -16,6 +16,7 @@ import authRouter from './routes/auth.js';
 import dnsAccountsRouter, { listCertificates } from './routes/dnsAccounts.js';
 import gitCredentialsRouter from './routes/gitCredentials.js';
 import postgresRouter from './routes/postgres.js';
+import redisRouter from './routes/redis.js';
 import projectsRouter from './routes/projects.js';
 import settingsRouter from './routes/settings.js';
 import sharedCertificatesRouter from './routes/sharedCertificates.js';
@@ -92,6 +93,7 @@ export function createApp() {
   api.use('/admins', adminsRouter);
   api.use('/settings', settingsRouter);
   api.use('/postgres', postgresRouter);
+  api.use('/redis', redisRouter);
   api.use('/smtp-accounts', smtpAccountsRouter);
   api.use('/git-credentials', gitCredentialsRouter);
   api.use('/dns-accounts', dnsAccountsRouter);

@@ -30,14 +30,35 @@
           <FeatherIcon name="download-cloud" :size="16" />
           Pull only
         </button>
+        <button
+          type="button"
+          class="btn"
+          :disabled="launching"
+          title="OS packages and dependencies, on the sources as they are"
+          @click="launch('install')"
+        >
+          <FeatherIcon name="package" :size="16" />
+          Install only
+        </button>
+        <button
+          type="button"
+          class="btn"
+          :disabled="launching"
+          title="Build commands, on the sources and dependencies as they are"
+          @click="launch('build')"
+        >
+          <FeatherIcon name="tool" :size="16" />
+          Build only
+        </button>
       </div>
       <p v-if="pullBlocked" class="tiny text-warning">
         Pull only is disabled while {{ project.name }} is running: stop it first (Deploy now pulls, builds and restarts
         it).
       </p>
       <p class="tiny text-faint">
-        {{ deployExplanation }} Pull only updates the sources. Nothing local is lost: changes to tracked files in
-        <code>repo/</code> go to a git stash, unpushed commits to a <code>solarops/backup-…</code> branch.
+        {{ deployExplanation }} Pull only updates the sources; Install only and Build only run that step alone, without
+        restarting. Nothing local is lost: changes to tracked files in <code>repo/</code> go to a git stash, unpushed
+        commits to a <code>solarops/backup-…</code> branch.
       </p>
     </div>
   </section>
@@ -67,10 +88,10 @@ export default {
   computed: {
     deployExplanation() {
       if (this.project.type === 'static') {
-        return 'Deploy = pull, install and build: the new files are live immediately.';
+        return 'Deploy = pull, OS packages, install and build: the new files are live immediately.';
       }
 
-      return 'Deploy = pull, install, build and restart.';
+      return 'Deploy = pull, OS packages, install, build and restart.';
     },
     /** A running application must be stopped before a pull only. */
     pullBlocked() {

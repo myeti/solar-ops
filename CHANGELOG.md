@@ -7,6 +7,41 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
+## [0.3.4] - 2026-11-25
+
+### Added
+
+- **Provided variables** (Environment tab): a project can provide variables to every other
+  project, prefixed with its uid (`umami`'s `SCRIPT_URL` is `UMAMI_SCRIPT_URL`). Values may use the
+  providing project's own variables (`${PUBLIC_URL}/script.js`); secrets stay masked. They show in
+  the receiving projects' final environment, with the project providing them.
+- **OS packages** (Deployment › Source): the Ubuntu packages a project needs (`ffmpeg pandoc`),
+  checked with apt when saved and installed before the install commands when missing. The setup
+  adds a root-owned helper allowed by sudo that only runs `apt-get install` (run `npm run update`).
+- **Install only** and **Build only** in the Deploy panel: that step alone, on the sources as they
+  are, without restarting.
+- **Redis** (project tab): a Redis instance per project, on demand, run by pm2 as `<uid>__redis`
+  and started and stopped with the project, on its own local port with a generated password, given
+  as `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` and `REDIS_URL`. Memory limit, Data or Cache
+  policy and persistence are applied live; restart, new password, flush. Its data lives in
+  `<project>/redis/` (counted in Storage). **Infrastructure › Redis** lists the projects using it;
+  the setup installs `redis-server` and disables its shared system service.
+
+### Changed
+
+- Deployment › Source: the repository URL, branch and git credential share one line.
+- The projects list shows SolarOps's own favicon on its row, like the other projects' favicons.
+
+### Fixed
+
+- The projects list missed the favicon of an application that redirects its home page (`/` to
+  `/login`), or that redirects to `https://` when it is not told it runs behind HTTPS: SolarOps now
+  asks it the way nginx does (`Host`, `X-Forwarded-Proto`...) and follows its redirects on its own
+  domain.
+- The setup and `npm run update` left an idle pm2 daemon running as root (`/root/.pm2`, about
+  70 MB): checking pm2's version started one. The version is now read without starting pm2, and
+  nothing else runs pm2 as root but `pm2 startup`; the projects only use the `solarops` daemon.
+
 ## [0.3.3] - 2026-11-22
 
 ### Added
@@ -166,6 +201,7 @@ First version: everything SolarOps does when the history starts.
   `npm run rollback`, and database migrations applied after a backup.
 - Docker test bench, ESLint and Prettier, documentation in `docs/`.
 
+[0.3.4]: https://github.com/myeti/solar-ops/compare/0.3.3...0.3.4
 [0.3.3]: https://github.com/myeti/solar-ops/compare/0.3.2...0.3.3
 [0.3.2]: https://github.com/myeti/solar-ops/compare/0.3.1...0.3.2
 [0.3.1]: https://github.com/myeti/solar-ops/compare/0.3.0...0.3.1

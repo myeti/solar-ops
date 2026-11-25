@@ -125,8 +125,8 @@ flowchart LR
   `db/` (dumps) and `logs/`. Inspect it, back it up, or start it by hand.
 - **Nothing to lock you in**: projects keep running when SolarOps is down, and the generated
   config is plain nginx and pm2.
-- **Least privilege**: SolarOps runs as its own user; its only root powers are `nginx -t` and
-  `systemctl reload nginx`.
+- **Least privilege**: SolarOps runs as its own user; its only root powers are `nginx -t`,
+  `systemctl reload nginx`, and installing the OS packages a project declares.
 
 ## 🚀 Quick start
 
