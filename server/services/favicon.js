@@ -2,8 +2,10 @@
  * The favicon of a project's website, for the projects list. It is looked
  * for on this server only, never on the internet:
  *
- *   - an application: its home page on its own port (127.0.0.1), whose
- *     <link rel="icon"> is followed on that same port, else /favicon.ico;
+ *   - an application: its home page on its own port (127.0.0.1), asked as
+ *     nginx does (Host, X-Forwarded-Proto...) and followed through its
+ *     redirects on its own site (/ => /login), whose <link rel="icon"> is
+ *     fetched on that same port, else /favicon.ico;
  *   - a static site: its index.html and files, in the folder nginx serves.
  *
  * Icons served from another host (a CDN) are ignored. Results, found or
@@ -77,29 +79,37 @@ export function declaredIcons(html) {
   return icons.map((icon) => icon.href);
 }
 
+/** The hosts of a project's website: its domain and aliases, lower-cased. */
+function ownHosts(project) {
+  const network = project.network;
+
+  return [network.domain, ...(network.aliases || [])].filter(Boolean).map((host) => host.toLowerCase());
+}
+
 /**
- * The path of an icon href on the project's own site, or null when it is
- * on another host (or not an http path).
+ * The path (and query) of a link on the project's own site, or null when it
+ * points to another host (or is not an http link).
  *
  * @param {string} href
- * @param {string|null} domain the project's domain, if any
+ * @param {import('../models/Project.js').default} project
+ * @param {string} [base] the page the link comes from
  */
-function localPath(href, domain) {
+function localPath(href, project, base = '/') {
   let url;
 
   try {
-    url = new URL(href, 'http://project.local/');
+    url = new URL(href, new URL(base, 'http://project.local/'));
   } catch {
     return null;
   }
 
-  const ownHost = url.host === 'project.local' || (domain && url.hostname === domain);
+  const ownHost = url.host === 'project.local' || ownHosts(project).includes(url.hostname.toLowerCase());
 
   if (!ownHost || !['http:', 'https:'].includes(url.protocol)) {
     return null;
   }
 
-  return decodeURIComponent(url.pathname);
+  return `${decodeURIComponent(url.pathname)}${url.search}`;
 }
 
 /** The first bytes of each image format (an app may answer any path with a page). */
@@ -138,19 +148,44 @@ function detectImageType(body) {
   return null;
 }
 
+/** Redirects followed on the project's own site (/ => /login...). */
+const MAX_REDIRECTS = 4;
+
+/**
+ * The headers nginx gives the application (services/nginx.js): without
+ * X-Forwarded-Proto, an app behind HTTPS often redirects to https://.
+ */
+function proxyHeaders(project) {
+  const network = project.network;
+  let scheme = 'http';
+
+  if (network.certMethod !== 'none') {
+    scheme = 'https';
+  }
+
+  const headers = {
+    'User-Agent': 'SolarOps favicon',
+    Accept: '*/*',
+    'X-Forwarded-Proto': scheme,
+    'X-Forwarded-For': '127.0.0.1',
+    'X-Real-IP': '127.0.0.1',
+  };
+
+  if (network.domain) {
+    headers.Host = network.domain;
+    headers['X-Forwarded-Host'] = network.domain;
+  }
+
+  return headers;
+}
+
 /**
  * One GET on the application's port.
  *
- * @returns {Promise<{status: number, type: string, body: Buffer}>}
+ * @returns {Promise<{status: number, type: string, location: string|null, body: Buffer}>}
  */
-function getLocal(port, pathname, domain, maxBytes) {
+function requestOnce(port, pathname, headers, maxBytes) {
   return new Promise((resolve, reject) => {
-    const headers = { 'User-Agent': 'SolarOps favicon', Accept: '*/*' };
-
-    if (domain) {
-      headers.Host = domain;
-    }
-
     const request = http.get({ host: '127.0.0.1', port, path: pathname, timeout: TIMEOUT_MS, headers }, (response) => {
       const chunks = [];
       let size = 0;
@@ -172,6 +207,7 @@ function getLocal(port, pathname, domain, maxBytes) {
             .split(';')[0]
             .trim()
             .toLowerCase(),
+          location: response.headers.location || null,
           body: Buffer.concat(chunks),
         });
       });
@@ -183,15 +219,47 @@ function getLocal(port, pathname, domain, maxBytes) {
   });
 }
 
+/**
+ * GET a path of the application as nginx would, following its redirects
+ * while they stay on the project's own site.
+ *
+ * @returns {Promise<{status: number, type: string, body: Buffer, path: string}>} path: the page finally served
+ */
+async function getLocal(project, pathname, maxBytes) {
+  const headers = proxyHeaders(project);
+  let current = pathname;
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    const response = await requestOnce(project.port, current, headers, maxBytes);
+    const redirected = response.status >= 300 && response.status < 400 && response.location;
+
+    if (!redirected) {
+      return { ...response, path: current };
+    }
+
+    const next = localPath(response.location, project, current);
+
+    if (next === null) {
+      return { ...response, path: current };
+    }
+
+    current = next;
+  }
+
+  throw new Error('too many redirects');
+}
+
 async function applicationIcon(project) {
-  const domain = project.network.domain || null;
   const candidates = [];
+  let base = '/';
 
   try {
-    const page = await getLocal(project.port, '/', domain, MAX_HTML_BYTES);
+    const page = await getLocal(project, '/', MAX_HTML_BYTES);
 
     if (page.status < 400 && page.type.includes('html')) {
       candidates.push(...declaredIcons(page.body.toString('utf8')));
+      // Relative links are relative to the page served (/login...).
+      base = page.path;
     }
   } catch {
     // No home page: the usual favicon paths may still answer.
@@ -200,14 +268,14 @@ async function applicationIcon(project) {
   candidates.push(...FALLBACK_ICONS);
 
   for (const href of candidates) {
-    const pathname = localPath(href, domain);
+    const pathname = localPath(href, project, base);
 
     if (pathname === null) {
       continue;
     }
 
     try {
-      const icon = await getLocal(project.port, pathname, domain, MAX_ICON_BYTES);
+      const icon = await getLocal(project, pathname, MAX_ICON_BYTES);
       const type = detectImageType(icon.body);
 
       if (icon.status === 200 && type !== null) {
@@ -236,12 +304,14 @@ async function staticIcon(project) {
   candidates.push(...FALLBACK_ICONS);
 
   for (const href of candidates) {
-    const pathname = localPath(href, project.network.domain || null);
+    const link = localPath(href, project);
 
-    if (pathname === null) {
+    if (link === null) {
       continue;
     }
 
+    // Files on disk: the path without its query.
+    const pathname = link.split('?')[0];
     const file = path.join(publicRoot, pathname);
 
     // Never outside the folder nginx serves.
