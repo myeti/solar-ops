@@ -30,6 +30,7 @@ date, and the version in `package.json` follows.
 ### Changed
 
 - Deployment › Source: the repository URL, branch and git credential share one line.
+- The projects list shows SolarOps's own favicon on its row, like the other projects' favicons.
 
 ### Fixed
 
