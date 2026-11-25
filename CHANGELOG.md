@@ -7,6 +7,15 @@ Notable changes of SolarOps, newest first. The format follows
 Every change adds a line under **Unreleased**; a release renames that section to its version and
 date, and the version in `package.json` follows.
 
+## [Unreleased]
+
+### Fixed
+
+- The projects list missed the favicon of an application that redirects its home page (`/` to
+  `/login`), or that redirects to `https://` when it is not told it runs behind HTTPS: SolarOps now
+  asks it the way nginx does (`Host`, `X-Forwarded-Proto`...) and follows its redirects on its own
+  domain.
+
 ## [0.3.3] - 2026-11-22
 
 ### Added
@@ -166,6 +175,7 @@ First version: everything SolarOps does when the history starts.
   `npm run rollback`, and database migrations applied after a backup.
 - Docker test bench, ESLint and Prettier, documentation in `docs/`.
 
+[Unreleased]: https://github.com/myeti/solar-ops/compare/0.3.3...develop
 [0.3.3]: https://github.com/myeti/solar-ops/compare/0.3.2...0.3.3
 [0.3.2]: https://github.com/myeti/solar-ops/compare/0.3.1...0.3.2
 [0.3.1]: https://github.com/myeti/solar-ops/compare/0.3.0...0.3.1
