@@ -213,6 +213,9 @@ const STATUS_TITLES = {
   inactive: 'Deactivated: stopped, and its domain is not served.',
 };
 
+/** SolarOps's own favicon (client/public/favicon.svg), the one of its browser tab. */
+const SOLAROPS_FAVICON = '/favicon.svg';
+
 const COLUMNS = [
   { key: 'name', label: 'Project', direction: 'asc' },
   { key: 'status', label: 'Status', direction: 'asc' },
@@ -399,17 +402,19 @@ export default {
       };
     },
     /**
-     * online: live and exposed on its domain; live: live, not exposed;
-     * down: not answering (an app), not built (a static site); stopped: an
-     * app stopped in pm2; inactive: a deactivated project. `live` is the
-     * server's probe (GET /api/projects?probe=1).
-     */
-    /**
      * The website's favicon (GET /api/projects/:uid/favicon), when the site
-     * can have one right now: live, and not SolarOps itself.
+     * can have one right now (live); SolarOps itself shows its own.
      */
     faviconUrlOf(project, status) {
-      if (project.system || this.missingIcons[project.uid] || !['online', 'live'].includes(status)) {
+      if (this.missingIcons[project.uid]) {
+        return null;
+      }
+
+      if (project.system) {
+        return SOLAROPS_FAVICON;
+      }
+
+      if (!['online', 'live'].includes(status)) {
         return null;
       }
 
@@ -418,6 +423,12 @@ export default {
     iconFailed(uid) {
       this.missingIcons = { ...this.missingIcons, [uid]: true };
     },
+    /**
+     * online: live and exposed on its domain; live: live, not exposed;
+     * down: not answering (an app), not built (a static site); stopped: an
+     * app stopped in pm2; inactive: a deactivated project. `live` is the
+     * server's probe (GET /api/projects?probe=1).
+     */
     statusOf(project) {
       if (!project.active) {
         return 'inactive';
